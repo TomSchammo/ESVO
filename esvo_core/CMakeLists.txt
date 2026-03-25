@@ -1,23 +1,61 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.5)
 project(esvo_core)
+
 # explicitly set std=c++14 to remove errors from pcl library
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-# SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3")
 set(CMAKE_CXX_FLAGS "-O3")
 
-find_package(catkin_simple REQUIRED)
-catkin_simple(ALL_DEPS_REQUIRED)
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(dvs_msgs REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(image_geometry REQUIRED)
+find_package(image_transport REQUIRED)
+# find_package(pcl_ros REQUIRED)  # Not needed, using pcl_conversions
+find_package(pcl_conversions REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_eigen REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(builtin_interfaces REQUIRED)
+find_package(message_filters REQUIRED)
+find_package(minkindr REQUIRED)
+find_package(minkindr_conversions REQUIRED)
 
 find_package(OpenCV REQUIRED)
+find_package(Eigen3 REQUIRED)
+find_package(PCL REQUIRED)
+find_package(yaml-cpp REQUIRED)
+
+set(ROS2_DEPENDENCIES
+  rclcpp
+  dvs_msgs
+  cv_bridge
+  image_geometry
+  image_transport
+  pcl_conversions
+  tf2
+  tf2_ros
+  tf2_eigen
+  tf2_geometry_msgs
+  sensor_msgs
+  geometry_msgs
+  nav_msgs
+  std_msgs
+  builtin_interfaces
+  message_filters
+  minkindr
+  minkindr_conversions
+)
 
 ###########
 ## Build ##
 ###########
-
-## Specify additional locations of header files
-## Your package locations should be listed before other locations
-include_directories(include)
 
 set(HEADERS
   include/esvo_core/core/DepthFusion.h
@@ -59,24 +97,93 @@ set(SOURCES
   src/tools/sobel.cpp
   src/tools/cayley.cpp)
 
-cs_add_library(${PROJECT_NAME}_LIB ${SOURCES} ${HEADERS})
+# Library
+add_library(${PROJECT_NAME}_LIB ${SOURCES} ${HEADERS})
+target_include_directories(${PROJECT_NAME}_LIB PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+  ${EIGEN3_INCLUDE_DIR}
+  ${PCL_INCLUDE_DIRS}
+)
+ament_target_dependencies(${PROJECT_NAME}_LIB ${ROS2_DEPENDENCIES})
+target_link_libraries(${PROJECT_NAME}_LIB
+  ${OpenCV_LIBRARIES}
+  ${PCL_LIBRARIES}
+  yaml-cpp
+  glog
+)
 
 # Node esvo_Mapping
-cs_add_executable(esvo_Mapping src/esvo_MappingNode.cpp
-    src/esvo_Mapping.cpp include/esvo_core/esvo_Mapping.h)
-target_link_libraries(esvo_Mapping ${PROJECT_NAME}_LIB
-    ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} yaml-cpp)
+add_executable(esvo_Mapping
+  src/esvo_MappingNode.cpp
+  src/esvo_Mapping.cpp
+  include/esvo_core/esvo_Mapping.h)
+target_include_directories(esvo_Mapping PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+  ${EIGEN3_INCLUDE_DIR}
+  ${PCL_INCLUDE_DIRS}
+)
+ament_target_dependencies(esvo_Mapping ${ROS2_DEPENDENCIES})
+target_link_libraries(esvo_Mapping
+  ${PROJECT_NAME}_LIB
+  ${OpenCV_LIBRARIES}
+  ${PCL_LIBRARIES}
+  yaml-cpp
+  glog
+)
 
 # Node esvo_Tracking
-cs_add_executable(esvo_Tracking src/esvo_TrackingNode.cpp
-    src/esvo_Tracking.cpp include/esvo_core/esvo_Tracking.h)
-target_link_libraries(esvo_Tracking ${PROJECT_NAME}_LIB
-    ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} yaml-cpp)
+add_executable(esvo_Tracking
+  src/esvo_TrackingNode.cpp
+  src/esvo_Tracking.cpp
+  include/esvo_core/esvo_Tracking.h)
+target_include_directories(esvo_Tracking PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+  ${EIGEN3_INCLUDE_DIR}
+  ${PCL_INCLUDE_DIRS}
+)
+ament_target_dependencies(esvo_Tracking ${ROS2_DEPENDENCIES})
+target_link_libraries(esvo_Tracking
+  ${PROJECT_NAME}_LIB
+  ${OpenCV_LIBRARIES}
+  ${PCL_LIBRARIES}
+  yaml-cpp
+  glog
+)
 
-# Node esvo_MVS (newly added in branch "mvs")
-cs_add_executable(esvo_MVStereo
-    src/esvo_MVStereoNode.cpp
-    src/esvo_MVStereo.cpp
-    include/esvo_core/esvo_MVStereo.h)
-target_link_libraries(esvo_MVStereo ${PROJECT_NAME}_LIB
-    ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} yaml-cpp)
+# Node esvo_MVStereo
+add_executable(esvo_MVStereo
+  src/esvo_MVStereoNode.cpp
+  src/esvo_MVStereo.cpp
+  include/esvo_core/esvo_MVStereo.h)
+target_include_directories(esvo_MVStereo PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+  ${EIGEN3_INCLUDE_DIR}
+  ${PCL_INCLUDE_DIRS}
+)
+ament_target_dependencies(esvo_MVStereo ${ROS2_DEPENDENCIES})
+target_link_libraries(esvo_MVStereo
+  ${PROJECT_NAME}_LIB
+  ${OpenCV_LIBRARIES}
+  ${PCL_LIBRARIES}
+  yaml-cpp
+  glog
+)
+
+# Install
+install(TARGETS
+  ${PROJECT_NAME}_LIB
+  esvo_Mapping
+  esvo_Tracking
+  esvo_MVStereo
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY include/
+  DESTINATION include
+)
+
+ament_package()

@@ -3,7 +3,7 @@
 
 #pragma once
 #include <string>
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 
 namespace esvo_core
 {
@@ -44,16 +44,16 @@ namespace tools
 //}
 
 template<typename T>
-T param(const ros::NodeHandle &nh, const std::string &name, const T &defaultValue)
+T param(rclcpp::Node* node, const std::string &name, const T &defaultValue)
 {
-  if (nh.hasParam(name))
+  node->declare_parameter(name, defaultValue);
+  T v;
+  if (node->get_parameter(name, v))
   {
-    T v;
-    nh.param<T>(name, v, defaultValue);
-    ROS_INFO_STREAM("Found parameter: " << name << ", value: " << v);
+    RCLCPP_INFO_STREAM(node->get_logger(), "Found parameter: " << name << ", value: " << v);
     return v;
   }
-  ROS_WARN_STREAM("Cannot find value for parameter: " << name << ", assigning default: " << defaultValue);
+  RCLCPP_WARN_STREAM(node->get_logger(), "Cannot find value for parameter: " << name << ", assigning default: " << defaultValue);
   return defaultValue;
 }
 } // tools

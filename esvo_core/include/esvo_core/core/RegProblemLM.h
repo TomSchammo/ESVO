@@ -8,7 +8,7 @@
 #include <esvo_core/tools/utils.h>
 
 #include <pcl/point_types.h>
-#include <pcl_ros/point_cloud.h>
+#include <pcl_conversions/pcl_conversions.h>
 
 namespace esvo_core
 {
@@ -59,7 +59,7 @@ struct RegProblemConfig
 struct RefFrame
 {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  ros::Time t_;
+  rclcpp::Time t_;
   std::vector<pcl::PointXYZ*> vPointXYZPtr_;
   Transformation tr_;
 };
@@ -67,7 +67,7 @@ struct RefFrame
 struct CurFrame
 {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  ros::Time t_;
+  rclcpp::Time t_;
   TimeSurfaceObservation* pTsObs_;
   Transformation tr_;
   Transformation tr_old_;

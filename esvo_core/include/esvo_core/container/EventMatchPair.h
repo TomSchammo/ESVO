@@ -24,7 +24,7 @@ struct EventMatchPair
   // rectified_event coordinate (left, right)
   Eigen::Vector2d x_left_, x_right_;
   // timestamp
-  ros::Time t_;
+  rclcpp::Time t_;
   // pose of virtual view (T_world_virtual)
   Transformation trans_;
   // inverse depth

@@ -2,7 +2,8 @@
 #include <esvo_core/tools/TicToc.h>
 #include <esvo_core/tools/params_helper.h>
 #include <minkindr_conversions/kindr_tf.h>
-#include <tf/transform_broadcaster.h>
+#include <tf2_ros/transform_broadcaster.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <sys/stat.h>
 
 //#define ESVO_CORE_TRACKING_DEBUG
@@ -10,59 +11,63 @@
 
 namespace esvo_core
 {
-esvo_Tracking::esvo_Tracking(
-  const ros::NodeHandle &nh,
-  const ros::NodeHandle &nh_private):
-  nh_(nh),
-  pnh_(nh_private),
-  it_(nh),
-  TS_left_sub_(nh_, "time_surface_left", 10),
-  TS_right_sub_(nh_, "time_surface_right", 10),
-  TS_sync_(ExactSyncPolicy(10), TS_left_sub_, TS_right_sub_),
-  calibInfoDir_(tools::param(pnh_, "calibInfoDir", std::string(""))),
+esvo_Tracking::esvo_Tracking()
+  : rclcpp::Node("esvo_tracking"),
+    calibInfoDir_(tools::param(this, "calibInfoDir", std::string(""))),
   camSysPtr_(new CameraSystem(calibInfoDir_, false)),
   rpConfigPtr_(new RegProblemConfig(
-    tools::param(pnh_, "patch_size_X", 25),
-    tools::param(pnh_, "patch_size_Y", 25),
-    tools::param(pnh_, "kernelSize", 15),
-    tools::param(pnh_, "LSnorm", std::string("l2")),
-    tools::param(pnh_, "huber_threshold", 10.0),
-    tools::param(pnh_, "invDepth_min_range", 0.0),
-    tools::param(pnh_, "invDepth_max_range", 0.0),
-    tools::param(pnh_, "MIN_NUM_EVENTS", 1000),
-    tools::param(pnh_, "MAX_REGISTRATION_POINTS", 500),
-    tools::param(pnh_, "BATCH_SIZE", 200),
-    tools::param(pnh_, "MAX_ITERATION", 10))),
-  rpType_((RegProblemType)((size_t)tools::param(pnh_, "RegProblemType", 0))),
+    tools::param(this, "patch_size_X", 25),
+    tools::param(this, "patch_size_Y", 25),
+    tools::param(this, "kernelSize", 15),
+    tools::param(this, "LSnorm", std::string("l2")),
+    tools::param(this, "huber_threshold", 10.0),
+    tools::param(this, "invDepth_min_range", 0.0),
+    tools::param(this, "invDepth_max_range", 0.0),
+    tools::param(this, "MIN_NUM_EVENTS", 1000),
+    tools::param(this, "MAX_REGISTRATION_POINTS", 500),
+    tools::param(this, "BATCH_SIZE", 200),
+    tools::param(this, "MAX_ITERATION", 10))),
+  rpType_((RegProblemType)((size_t)tools::param(this, "RegProblemType", 0))),
   rpSolver_(camSysPtr_, rpConfigPtr_, rpType_, NUM_THREAD_TRACKING),
   ESVO_System_Status_("INITIALIZATION"),
   ets_(IDLE)
 {
   // offline data
-  dvs_frame_id_        = tools::param(pnh_, "dvs_frame_id", std::string("dvs"));
-  world_frame_id_      = tools::param(pnh_, "world_frame_id", std::string("world"));
+  dvs_frame_id_        = tools::param(this, "dvs_frame_id", std::string("dvs"));
+  world_frame_id_      = tools::param(this, "world_frame_id", std::string("world"));
 
   /**** online parameters ***/
-  tracking_rate_hz_    = tools::param(pnh_, "tracking_rate_hz", 100);
-  TS_HISTORY_LENGTH_  = tools::param(pnh_, "TS_HISTORY_LENGTH", 100);
-  REF_HISTORY_LENGTH_  = tools::param(pnh_, "REF_HISTORY_LENGTH", 5);
-  bSaveTrajectory_     = tools::param(pnh_, "SAVE_TRAJECTORY", false);
-  bVisualizeTrajectory_ = tools::param(pnh_, "VISUALIZE_TRAJECTORY", true);
-  resultPath_             = tools::param(pnh_, "PATH_TO_SAVE_TRAJECTORY", std::string());
-  nh_.setParam("/ESVO_SYSTEM_STATUS", ESVO_System_Status_);
+  tracking_rate_hz_    = tools::param(this, "tracking_rate_hz", 100);
+  TS_HISTORY_LENGTH_   = tools::param(this, "TS_HISTORY_LENGTH", 100);
+  REF_HISTORY_LENGTH_  = tools::param(this, "REF_HISTORY_LENGTH", 5);
+  bSaveTrajectory_     = tools::param(this, "SAVE_TRAJECTORY", false);
+  bVisualizeTrajectory_ = tools::param(this, "VISUALIZE_TRAJECTORY", true);
+  resultPath_          = tools::param(this, "PATH_TO_SAVE_TRAJECTORY", std::string());
+  // Declare parameter for system status
+  this->declare_parameter("ESVO_SYSTEM_STATUS", ESVO_System_Status_);
 
   // online data callbacks
-  events_left_sub_  = nh_.subscribe<dvs_msgs::EventArray>(
-    "events_left", 0, &esvo_Tracking::eventsCallback, this);
-  TS_sync_.registerCallback(boost::bind(&esvo_Tracking::timeSurfaceCallback, this, _1, _2));
-  tf_ = std::make_shared<tf::Transformer>(true, ros::Duration(100.0));
-  pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("/esvo_tracking/pose_pub", 1);
-  path_pub_ = nh_.advertise<nav_msgs::Path>("/esvo_tracking/trajectory", 1);
-  map_sub_ = nh_.subscribe("pointcloud", 0, &esvo_Tracking::refMapCallback, this);// local map in the ref view.
-  stampedPose_sub_ = nh_.subscribe("stamped_pose", 0, &esvo_Tracking::stampedPoseCallback, this);// for accessing the pose of the ref view.
+  events_left_sub_ = this->create_subscription<dvs_msgs::msg::EventArray>(
+    "events_left", 0, std::bind(&esvo_Tracking::eventsCallback, this, std::placeholders::_1));
+  // message_filters subscribers and synchronizer
+  TS_left_sub_.subscribe(this, "time_surface_left", rmw_qos_profile_default);
+  TS_right_sub_.subscribe(this, "time_surface_right", rmw_qos_profile_default);
+  TS_sync_ = std::make_shared<message_filters::Synchronizer<ExactSyncPolicy>>(ExactSyncPolicy(10), TS_left_sub_, TS_right_sub_);
+  TS_sync_->registerCallback(std::bind(&esvo_Tracking::timeSurfaceCallback, this, std::placeholders::_1, std::placeholders::_2));
+  // TF2
+  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+  // Publishers
+  pose_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("/esvo_tracking/pose_pub", 1);
+  path_pub_ = this->create_publisher<nav_msgs::msg::Path>("/esvo_tracking/trajectory", 1);
+  // Subscribers
+  map_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+    "pointcloud", 0, std::bind(&esvo_Tracking::refMapCallback, this, std::placeholders::_1));// local map in the ref view.
+  stampedPose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+    "stamped_pose", 0, std::bind(&esvo_Tracking::stampedPoseCallback, this, std::placeholders::_1));// for accessing the pose of the ref view.
 
   /*** For Visualization and Test ***/
-  reprojMap_pub_left_  = it_.advertise("Reproj_Map_Left", 1);
+  reprojMap_pub_left_ = image_transport::create_publisher(this, "Reproj_Map_Left");
   rpSolver_.setRegPublisher(&reprojMap_pub_left_);
 
   /*** Tracker ***/
@@ -73,13 +78,12 @@ esvo_Tracking::esvo_Tracking(
 
 esvo_Tracking::~esvo_Tracking()
 {
-  pose_pub_.shutdown();
 }
 
 void esvo_Tracking::TrackingLoop()
 {
-  ros::Rate r(tracking_rate_hz_);
-  while(ros::ok())
+  rclcpp::Rate r(tracking_rate_hz_);
+  while(rclcpp::ok())
   {
     // Keep Idling
     if(refPCMap_.size() < 1 || TS_history_.size() < 1)
@@ -87,8 +91,8 @@ void esvo_Tracking::TrackingLoop()
       r.sleep();
       continue;
     }
-    // Reset
-    nh_.getParam("/ESVO_SYSTEM_STATUS", ESVO_System_Status_);
+    // Reset - check parameter for system status
+    this->get_parameter("ESVO_SYSTEM_STATUS", ESVO_System_Status_);
     if(ESVO_System_Status_ == "INITIALIZATION" && ets_ == WORKING)// This is true when the system is reset from dynamic reconfigure
     {
       reset();
@@ -104,11 +108,11 @@ void esvo_Tracking::TrackingLoop()
     // Data Transfer (If mapping node had published refPC.)
     {
       std::lock_guard<std::mutex> lock(data_mutex_);
-      if(ref_.t_.toSec() < refPCMap_.rbegin()->first.toSec())// new reference map arrived
+      if(ref_.t_.seconds() < refPCMap_.rbegin()->first.seconds())// new reference map arrived
         refDataTransferring();
-      if(cur_.t_.toSec() < TS_history_.rbegin()->first.toSec())// new observation arrived
+      if(cur_.t_.seconds() < TS_history_.rbegin()->first.seconds())// new observation arrived
       {
-        if(ref_.t_.toSec() >= TS_history_.rbegin()->first.toSec())
+        if(ref_.t_.seconds() >= TS_history_.rbegin()->first.seconds())
         {
           LOG(INFO) << "The time_surface observation should be obtained after the reference frame";
           exit(-1);
@@ -135,7 +139,7 @@ void esvo_Tracking::TrackingLoop()
       if(ets_ == IDLE)
         ets_ = WORKING;
       if(ESVO_System_Status_ != "WORKING")
-        nh_.setParam("/ESVO_SYSTEM_STATUS", "WORKING");
+        this->set_parameter(rclcpp::Parameter("ESVO_SYSTEM_STATUS", "WORKING"));
       if(rpType_ == REG_NUMERICAL)
         rpSolver_.solve_numerical();
       if(rpType_ == REG_ANALYTICAL)
@@ -156,13 +160,13 @@ void esvo_Tracking::TrackingLoop()
       if(bSaveTrajectory_)
       {
         // save results to listPose and listPoseGt
-        lTimestamp_.push_back(std::to_string(cur_.t_.toSec()));
+        lTimestamp_.push_back(std::to_string(cur_.t_.seconds()));
         lPose_.push_back(cur_.tr_.getTransformationMatrix());
       }
     }
     else
     {
-      nh_.setParam("/ESVO_SYSTEM_STATUS", "INITIALIZATION");
+      this->set_parameter(rclcpp::Parameter("ESVO_SYSTEM_STATUS", "INITIALIZATION"));
       ets_ = IDLE;
 //      LOG(INFO) << "Tracking thread is IDLE";
     }
@@ -190,7 +194,7 @@ void esvo_Tracking::TrackingLoop()
     if( stat(resultPath_.c_str(), &st) == -1 )// there is no such dir, create one
     {
       LOG(INFO) << "There is no such directory: " << resultPath_;
-      _mkdir(resultPath_.c_str());
+      tools::_mkdir(resultPath_.c_str());
       LOG(INFO) << "The directory has been created!!!";
     }
     LOG(INFO) << "pose size: " << lPose_.size();
@@ -205,7 +209,7 @@ esvo_Tracking::refDataTransferring()
   // load reference info
   ref_.t_ = refPCMap_.rbegin()->first;
 
-  nh_.getParam("/ESVO_SYSTEM_STATUS", ESVO_System_Status_);
+  this->get_parameter("ESVO_SYSTEM_STATUS", ESVO_System_Status_);
 //  LOG(INFO) << "SYSTEM STATUS(T"
   if(ESVO_System_Status_ == "INITIALIZATION" && ets_ == IDLE)
     ref_.tr_.setIdentity();
@@ -213,7 +217,7 @@ esvo_Tracking::refDataTransferring()
   {
     if(!getPoseAt(ref_.t_, ref_.tr_, dvs_frame_id_))
     {
-      LOG(INFO) << "ESVO_System_Status_: " << ESVO_System_Status_ << ", ref_.t_: " << ref_.t_.toNSec();
+      LOG(INFO) << "ESVO_System_Status_: " << ESVO_System_Status_ << ", ref_.t_: " << ref_.t_.nanoseconds();
       LOG(INFO) << "Logic error ! There must be a pose for the given timestamp, because mapping has been finished.";
       exit(-1);
       return false;
@@ -246,17 +250,17 @@ esvo_Tracking::curDataTransferring()
   cur_.t_ = TS_it->first;
   cur_.pTsObs_ = &TS_it->second;
 
-  nh_.getParam("/ESVO_SYSTEM_STATUS", ESVO_System_Status_);
+  this->get_parameter("ESVO_SYSTEM_STATUS", ESVO_System_Status_);
   if(ESVO_System_Status_ == "INITIALIZATION" && ets_ == IDLE)
   {
     cur_.tr_ = ref_.tr_;
-//    LOG(INFO) << "(IDLE) Assign cur's ("<< cur_.t_.toNSec() << ") pose with ref's at " << ref_.t_.toNSec();
+//    LOG(INFO) << "(IDLE) Assign cur's ("<< cur_.t_.nanoseconds() << ") pose with ref's at " << ref_.t_.nanoseconds();
     // LOG(INFO) << " " << cur_.tr_.getTransformationMatrix() << " ";
   }
   if(ESVO_System_Status_ == "WORKING" || (ESVO_System_Status_ == "INITIALIZATION" && ets_ == WORKING))
   {
     cur_.tr_ = Transformation(T_world_cur_);
-//    LOG(INFO) << "(WORKING) Assign cur's ("<< cur_.t_.toNSec() << ") pose with T_world_cur.";
+//    LOG(INFO) << "(WORKING) Assign cur's ("<< cur_.t_.nanoseconds() << ") pose with T_world_cur.";
   }
   // Count the number of events occuring since the last observation.
   auto ev_cur_it = EventBuffer_lower_bound(events_left_, cur_.t_);
@@ -276,7 +280,7 @@ void esvo_Tracking::reset()
 
 
 /********************** Callback functions *****************************/
-void esvo_Tracking::refMapCallback(const sensor_msgs::PointCloud2::ConstPtr &msg)
+void esvo_Tracking::refMapCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg)
 {
   std::lock_guard<std::mutex> lock(data_mutex_);
   pcl::PCLPointCloud2 pcl_pc;
@@ -291,16 +295,15 @@ void esvo_Tracking::refMapCallback(const sensor_msgs::PointCloud2::ConstPtr &msg
   }
 }
 
-void esvo_Tracking::eventsCallback(
-  const dvs_msgs::EventArray::ConstPtr &msg)
+void esvo_Tracking::eventsCallback(const dvs_msgs::msg::EventArray::SharedPtr msg)
 {
   std::lock_guard<std::mutex> lock(data_mutex_);
   // add new ones and remove old ones
-  for(const dvs_msgs::Event& e : msg->events)
+  for(const dvs_msgs::msg::Event& e : msg->events)
   {
     events_left_.push_back(e);
     int i = events_left_.size() - 2;
-    while(i >= 0 && events_left_[i].ts > e.ts) // we may have to sort the queue, just in case the raw event messages do not come in a chronological order.
+    while(i >= 0 && rclcpp::Time(events_left_[i].ts) > rclcpp::Time(e.ts)) // we may have to sort the queue, just in case the raw event messages do not come in a chronological order.
     {
       events_left_[i+1] = events_left_[i];
       i--;
@@ -322,8 +325,8 @@ void esvo_Tracking::clearEventQueue()
 
 void
 esvo_Tracking::timeSurfaceCallback(
-  const sensor_msgs::ImageConstPtr &time_surface_left,
-  const sensor_msgs::ImageConstPtr &time_surface_right)
+  const sensor_msgs::msg::Image::ConstSharedPtr& time_surface_left,
+  const sensor_msgs::msg::Image::ConstSharedPtr& time_surface_right)
 {
   std::lock_guard<std::mutex> lock(data_mutex_);
   cv_bridge::CvImagePtr cv_ptr_left, cv_ptr_right;
@@ -334,12 +337,12 @@ esvo_Tracking::timeSurfaceCallback(
   }
   catch (cv_bridge::Exception& e)
   {
-    ROS_ERROR("cv_bridge exception: %s", e.what());
+    RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
     return;
   }
 
   // push back the most current TS.
-  ros::Time t_new_ts = time_surface_left->header.stamp;
+  rclcpp::Time t_new_ts = time_surface_left->header.stamp;
   TS_history_.emplace(t_new_ts, TimeSurfaceObservation(cv_ptr_left, cv_ptr_right, TS_id_, false));
   TS_id_++;
 
@@ -351,51 +354,54 @@ esvo_Tracking::timeSurfaceCallback(
   }
 }
 
-void esvo_Tracking::stampedPoseCallback(const geometry_msgs::PoseStampedConstPtr &msg)
+void esvo_Tracking::stampedPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
 {
   std::lock_guard<std::mutex> lock(data_mutex_);
-  // add pose to tf
-  tf::Transform tf(
-    tf::Quaternion(
-      msg->pose.orientation.x,
-      msg->pose.orientation.y,
-      msg->pose.orientation.z,
-      msg->pose.orientation.w),
-    tf::Vector3(
-      msg->pose.position.x,
-      msg->pose.position.y,
-      msg->pose.position.z));
-  tf::StampedTransform st(tf, msg->header.stamp, msg->header.frame_id, dvs_frame_id_.c_str());
-  tf_->setTransform(st);
-  // broadcast the tf such that the nav_path messages can find the valid fixed frame "map".
-  static tf::TransformBroadcaster br;
-  br.sendTransform(st);
+
+  // Create transform and add to buffer
+  geometry_msgs::msg::TransformStamped transform_stamped;
+  transform_stamped.header = msg->header;
+  transform_stamped.child_frame_id = dvs_frame_id_;
+  transform_stamped.transform.translation.x = msg->pose.position.x;
+  transform_stamped.transform.translation.y = msg->pose.position.y;
+  transform_stamped.transform.translation.z = msg->pose.position.z;
+  transform_stamped.transform.rotation = msg->pose.orientation;
+
+  // Use a static transform broadcaster to publish the transform
+  static tf2_ros::TransformBroadcaster br(this);
+  br.sendTransform(transform_stamped);
+
+  // Also set it in the buffer for lookups
+  tf_buffer_->setTransform(transform_stamped, "esvo_tracking", false);
 }
 
 bool
 esvo_Tracking::getPoseAt(
-  const ros::Time &t, esvo_core::Transformation &Tr, const std::string &source_frame)
+  const rclcpp::Time &t, esvo_core::Transformation &Tr, const std::string &source_frame)
 {
-  std::string* err_msg = new std::string();
-  if(!tf_->canTransform(world_frame_id_, source_frame, t, err_msg))
+  try
   {
-    LOG(WARNING) << t.toNSec() << " : " << *err_msg;
-    delete err_msg;
-    return false;
-  }
-  else
-  {
-    tf::StampedTransform st;
-    tf_->lookupTransform(world_frame_id_, source_frame, t, st);
-    tf::transformTFToKindr(st, &Tr);
+    if(!tf_buffer_->canTransform(world_frame_id_, source_frame, t, rclcpp::Duration::from_seconds(0.0)))
+    {
+      LOG(WARNING) << t.nanoseconds() << " : Cannot transform";
+      return false;
+    }
+    geometry_msgs::msg::TransformStamped transform_stamped =
+      tf_buffer_->lookupTransform(world_frame_id_, source_frame, t);
+    tf2::transformTFToKindr(transform_stamped, &Tr);
     return true;
+  }
+  catch (tf2::TransformException &ex)
+  {
+    LOG(WARNING) << t.nanoseconds() << " : " << ex.what();
+    return false;
   }
 }
 
 /************ publish results *******************/
-void esvo_Tracking::publishPose(const ros::Time &t, Transformation &tr)
+void esvo_Tracking::publishPose(const rclcpp::Time &t, Transformation &tr)
 {
-  geometry_msgs::PoseStampedPtr ps_ptr(new geometry_msgs::PoseStamped());
+  auto ps_ptr = std::make_shared<geometry_msgs::msg::PoseStamped>();
   ps_ptr->header.stamp = t;
   ps_ptr->header.frame_id = world_frame_id_;
   ps_ptr->pose.position.x = tr.getPosition()(0);
@@ -405,26 +411,26 @@ void esvo_Tracking::publishPose(const ros::Time &t, Transformation &tr)
   ps_ptr->pose.orientation.y = tr.getRotation().y();
   ps_ptr->pose.orientation.z = tr.getRotation().z();
   ps_ptr->pose.orientation.w = tr.getRotation().w();
-  pose_pub_.publish(ps_ptr);
+  pose_pub_->publish(*ps_ptr);
 }
 
-void esvo_Tracking::publishPath(const ros::Time& t, Transformation& tr)
+void esvo_Tracking::publishPath(const rclcpp::Time& t, Transformation& tr)
 {
-  geometry_msgs::PoseStampedPtr ps_ptr(new geometry_msgs::PoseStamped());
-  ps_ptr->header.stamp = t;
-  ps_ptr->header.frame_id = world_frame_id_;
-  ps_ptr->pose.position.x = tr.getPosition()(0);
-  ps_ptr->pose.position.y = tr.getPosition()(1);
-  ps_ptr->pose.position.z = tr.getPosition()(2);
-  ps_ptr->pose.orientation.x = tr.getRotation().x();
-  ps_ptr->pose.orientation.y = tr.getRotation().y();
-  ps_ptr->pose.orientation.z = tr.getRotation().z();
-  ps_ptr->pose.orientation.w = tr.getRotation().w();
+  geometry_msgs::msg::PoseStamped ps;
+  ps.header.stamp = t;
+  ps.header.frame_id = world_frame_id_;
+  ps.pose.position.x = tr.getPosition()(0);
+  ps.pose.position.y = tr.getPosition()(1);
+  ps.pose.position.z = tr.getPosition()(2);
+  ps.pose.orientation.x = tr.getRotation().x();
+  ps.pose.orientation.y = tr.getRotation().y();
+  ps.pose.orientation.z = tr.getRotation().z();
+  ps.pose.orientation.w = tr.getRotation().w();
 
   path_.header.stamp = t;
   path_.header.frame_id = world_frame_id_;
-  path_.poses.push_back(*ps_ptr);
-  path_pub_.publish(path_);
+  path_.poses.push_back(ps);
+  path_pub_->publish(path_);
 }
 
 void

@@ -128,9 +128,9 @@ bool RegProblemSolverLM::solve_numerical()
         visualizor_.DrawPoint(1.0 / z, 1.0 / z_min_, 1.0 / z_max_,
                               Eigen::Vector2d(p_img_left(0), p_img_left(1)), reprojMap_left);
       }
-      std_msgs::Header header;
+      std_msgs::msg::Header header;
       header.stamp = numDiff_regProblemPtr_->cur_->t_;
-      sensor_msgs::ImagePtr msg = cv_bridge::CvImage(header, "bgr8", reprojMap_left).toImageMsg();
+      sensor_msgs::msg::Image::SharedPtr msg = cv_bridge::CvImage(header, "bgr8", reprojMap_left).toImageMsg();
       reprojMap_pub_->publish(msg);
     }
     /*************************** Visualization ************************/

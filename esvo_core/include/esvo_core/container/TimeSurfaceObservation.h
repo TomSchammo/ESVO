@@ -1,14 +1,13 @@
 #ifndef ESVO_CORE_CONTAINER_TIMESURFACEOBSERVATION_H
 #define ESVO_CORE_CONTAINER_TIMESURFACEOBSERVATION_H
 
-#include <dvs_msgs/Event.h>
-#include <dvs_msgs/EventArray.h>
-#include <cv_bridge/cv_bridge.h>
+#include <rclcpp/rclcpp.hpp>
+#include <dvs_msgs/msg/event.hpp>
+#include <dvs_msgs/msg/event_array.hpp>
+#include <cv_bridge/cv_bridge.hpp>
 
-#include <tf/tf.h>
-#include <tf/tfMessage.h>
-#include <tf/transform_datatypes.h>
-#include <tf_conversions/tf_eigen.h>
+#include <tf2/LinearMath/Transform.h>
+#include <tf2_eigen/tf2_eigen.hpp>
 #include <kindr/minimal/quat-transformation.h>
 
 #include <opencv2/core/eigen.hpp>
@@ -156,30 +155,30 @@ struct TimeSurfaceObservation
   size_t id_;
 };
 
-struct ROSTimeCmp
+struct RclcppTimeCmp
 {
-  bool operator()(const ros::Time &a, const ros::Time &b) const
+  bool operator()(const rclcpp::Time &a, const rclcpp::Time &b) const
   {
-    return a.toNSec() < b.toNSec();
+    return a.nanoseconds() < b.nanoseconds();
   }
 };
 
-using TimeSurfaceHistory = std::map<ros::Time, TimeSurfaceObservation, ROSTimeCmp>;
-using StampedTimeSurfaceObs = std::pair<ros::Time, TimeSurfaceObservation>;
+using TimeSurfaceHistory = std::map<rclcpp::Time, TimeSurfaceObservation, RclcppTimeCmp>;
+using StampedTimeSurfaceObs = std::pair<rclcpp::Time, TimeSurfaceObservation>;
 
-inline static TimeSurfaceHistory::iterator TSHistory_lower_bound(TimeSurfaceHistory &ts_history, ros::Time &t)
+inline static TimeSurfaceHistory::iterator TSHistory_lower_bound(TimeSurfaceHistory &ts_history, rclcpp::Time &t)
 {
   return std::lower_bound(ts_history.begin(), ts_history.end(), t,
-                          [](const std::pair<ros::Time, TimeSurfaceObservation> &tso, const ros::Time &t) {
-                            return tso.first.toSec() < t.toSec();
+                          [](const std::pair<rclcpp::Time, TimeSurfaceObservation> &tso, const rclcpp::Time &t) {
+                            return tso.first.seconds() < t.seconds();
                           });
 }
 
-inline static TimeSurfaceHistory::iterator TSHistory_upper_bound(TimeSurfaceHistory &ts_history, ros::Time &t)
+inline static TimeSurfaceHistory::iterator TSHistory_upper_bound(TimeSurfaceHistory &ts_history, rclcpp::Time &t)
 {
   return std::upper_bound(ts_history.begin(), ts_history.end(), t,
-                          [](const ros::Time &t, const std::pair<ros::Time, TimeSurfaceObservation> &tso) {
-                            return t.toSec() < tso.first.toSec();
+                          [](const rclcpp::Time &t, const std::pair<rclcpp::Time, TimeSurfaceObservation> &tso) {
+                            return t.seconds() < tso.first.seconds();
                           });
 }
 }

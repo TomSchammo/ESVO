@@ -1,12 +1,14 @@
 #include <esvo_core/esvo_MVStereo.h>
-#include <esvo_core/DVS_MappingStereoConfig.h>
+// #include <esvo_core/DVS_MappingStereoConfig.h>  // dynamic_reconfigure not available in ROS2
 #include <esvo_core/tools/params_helper.h>
 
 #include <minkindr_conversions/kindr_tf.h>
-#include <geometry_msgs/TransformStamped.h>
+#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <tf2_ros/transform_broadcaster.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 #include <opencv2/imgproc.hpp>
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 
 #include <thread>
 #include <iterator>
@@ -18,87 +20,80 @@
 
 namespace esvo_core
 {
-esvo_MVStereo::esvo_MVStereo(
-  const ros::NodeHandle &nh,
-  const ros::NodeHandle &nh_private)
-  : nh_(nh),
-    pnh_(nh_private),
-    TS_left_sub_(nh_, "time_surface_left", 10),
-    TS_right_sub_(nh_, "time_surface_right", 10),
-    TS_sync_(ExactSyncPolicy(10), TS_left_sub_, TS_right_sub_),
-    it_(nh),
-    calibInfoDir_(tools::param(pnh_, "calibInfoDir", std::string(""))),
+esvo_MVStereo::esvo_MVStereo()
+  : rclcpp::Node("esvo_mvstereo"),
+    calibInfoDir_(tools::param(this, "calibInfoDir", std::string(""))),
     camSysPtr_(new CameraSystem(calibInfoDir_, false)),
     dpConfigPtr_(new DepthProblemConfig(
-        tools::param(pnh_, "patch_size_X", 25),
-        tools::param(pnh_, "patch_size_Y", 25),
-        tools::param(pnh_, "LSnorm", std::string("Tdist")),
-        tools::param(pnh_, "Tdist_nu", 0.0),
-        tools::param(pnh_, "Tdist_scale", 0.0),
-        tools::param(pnh_, "ITERATION_OPTIMIZATION", 10),
-        tools::param(pnh_, "RegularizationRadius", 5),
-        tools::param(pnh_, "RegularizationMinNeighbours", 8),
-        tools::param(pnh_, "RegularizationMinCloseNeighbours", 8))),
+        tools::param(this, "patch_size_X", 25),
+        tools::param(this, "patch_size_Y", 25),
+        tools::param(this, "LSnorm", std::string("Tdist")),
+        tools::param(this, "Tdist_nu", 0.0),
+        tools::param(this, "Tdist_scale", 0.0),
+        tools::param(this, "ITERATION_OPTIMIZATION", 10),
+        tools::param(this, "RegularizationRadius", 5),
+        tools::param(this, "RegularizationMinNeighbours", 8),
+        tools::param(this, "RegularizationMinCloseNeighbours", 8))),
     dpSolver_(camSysPtr_, dpConfigPtr_, NUMERICAL, NUM_THREAD_MAPPING),
     dFusor_(camSysPtr_, dpConfigPtr_),
     dRegularizor_(dpConfigPtr_),
     em_(camSysPtr_, NUM_THREAD_MAPPING),
-    ebm_(camSysPtr_, NUM_THREAD_MAPPING, tools::param(pnh_, "SmoothTimeSurface", false)),
+    ebm_(camSysPtr_, NUM_THREAD_MAPPING, tools::param(this, "SmoothTimeSurface", false)),
     pc_(new PointCloud()),
     depthFramePtr_(new DepthFrame(camSysPtr_->cam_left_ptr_->height_, camSysPtr_->cam_left_ptr_->width_))
 {
   // frame id
-  dvs_frame_id_        = tools::param(pnh_, "dvs_frame_id", std::string("dvs"));
-  world_frame_id_      = tools::param(pnh_, "world_frame_id", std::string("world"));
+  dvs_frame_id_        = tools::param(this, "dvs_frame_id", std::string("dvs"));
+  world_frame_id_      = tools::param(this, "world_frame_id", std::string("world"));
   pc_->header.frame_id = world_frame_id_;
 
   /**** online parameters ***/
   // mapping parameters
-  invDepth_min_range_   = tools::param(pnh_, "invDepth_min_range", 0.16);
-  invDepth_max_range_   = tools::param(pnh_, "invDepth_max_range", 2.0);
-  patch_area_           = tools::param(pnh_, "patch_size_X", 25) *  tools::param(pnh_, "patch_size_Y", 25);
-  residual_vis_threshold_ = tools::param(pnh_, "residual_vis_threshold", 15);
+  invDepth_min_range_   = tools::param(this, "invDepth_min_range", 0.16);
+  invDepth_max_range_   = tools::param(this, "invDepth_max_range", 2.0);
+  patch_area_           = tools::param(this, "patch_size_X", 25) *  tools::param(this, "patch_size_Y", 25);
+  residual_vis_threshold_ = tools::param(this, "residual_vis_threshold", 15);
   cost_vis_threshold_   = pow(residual_vis_threshold_,2) * patch_area_;
-  stdVar_vis_threshold_ = tools::param(pnh_, "stdVar_vis_threshold", 0.005);
-  age_max_range_        = tools::param(pnh_, "age_max_range", 5);
-  age_vis_threshold_    = tools::param(pnh_, "age_vis_threshold", 0);
-  fusion_radius_        = tools::param(pnh_, "fusion_radius", 0);
-  FusionStrategy_       = tools::param(pnh_, "FUSION_STRATEGY", std::string("CONST_FRAMES"));
-  maxNumFusionFrames_   = tools::param(pnh_, "maxNumFusionFrames", 20);
-  maxNumFusionPoints_   = tools::param(pnh_, "maxNumFusionPoints", 5000);
+  stdVar_vis_threshold_ = tools::param(this, "stdVar_vis_threshold", 0.005);
+  age_max_range_        = tools::param(this, "age_max_range", 5);
+  age_vis_threshold_    = tools::param(this, "age_vis_threshold", 0);
+  fusion_radius_        = tools::param(this, "fusion_radius", 0);
+  FusionStrategy_       = tools::param(this, "FUSION_STRATEGY", std::string("CONST_FRAMES"));
+  maxNumFusionFrames_   = tools::param(this, "maxNumFusionFrames", 20);
+  maxNumFusionPoints_   = tools::param(this, "maxNumFusionPoints", 5000);
 
   // options
-  bDenoising_          = tools::param(pnh_, "Denoising", false);
-  bRegularization_     = tools::param(pnh_, "Regularization", false);
-  resetButton_         = tools::param(pnh_, "ResetButton", false);
+  bDenoising_          = tools::param(this, "Denoising", false);
+  bRegularization_     = tools::param(this, "Regularization", false);
+  resetButton_         = tools::param(this, "ResetButton", false);
 
   // module parameters
-  PROCESS_EVENT_NUM_   = tools::param(pnh_, "PROCESS_EVENT_NUM", 500);
-  TS_HISTORY_LENGTH_   = tools::param(pnh_, "TS_HISTORY_LENGTH", 100);
-  mapping_rate_hz_     = tools::param(pnh_, "mapping_rate_hz", 20);
+  PROCESS_EVENT_NUM_   = tools::param(this, "PROCESS_EVENT_NUM", 500);
+  TS_HISTORY_LENGTH_   = tools::param(this, "TS_HISTORY_LENGTH", 100);
+  mapping_rate_hz_     = tools::param(this, "mapping_rate_hz", 20);
 
   // EM parameters [26]
-  EM_Slice_Thickness_ = tools::param(pnh_, "EM_Slice_Thickness", 1e-3);
-  EM_Time_THRESHOLD_  = tools::param(pnh_, "EM_Time_THRESHOLD", 5e-5);
-  EM_EPIPOLAR_THRESHOLD_ = tools::param(pnh_, "EM_EPIPOLAR_THRESHOLD", 0.5);
-  EM_TS_NCC_THRESHOLD_ = tools::param(pnh_, "EM_TS_NCC_THRESHOLD", 0.1);
-  EM_patch_size_X_ = tools::param(pnh_, "patch_size_X", 25);
-  EM_patch_size_Y_ = tools::param(pnh_, "patch_size_Y", 25);
-  EM_numEventMatching_ = tools::param(pnh_, "EM_NUM_EVENT_MATCHING", 3000);
-  EM_patch_intensity_threshold_ = tools::param(pnh_, "EM_PATCH_INTENSITY_THRESHOLD", 125);
-  EM_patch_valid_ratio_ = tools::param(pnh_, "EM_PATCH_VALID_RATIO", 0.1);
+  EM_Slice_Thickness_ = tools::param(this, "EM_Slice_Thickness", 1e-3);
+  EM_Time_THRESHOLD_  = tools::param(this, "EM_Time_THRESHOLD", 5e-5);
+  EM_EPIPOLAR_THRESHOLD_ = tools::param(this, "EM_EPIPOLAR_THRESHOLD", 0.5);
+  EM_TS_NCC_THRESHOLD_ = tools::param(this, "EM_TS_NCC_THRESHOLD", 0.1);
+  EM_patch_size_X_ = tools::param(this, "patch_size_X", 25);
+  EM_patch_size_Y_ = tools::param(this, "patch_size_Y", 25);
+  EM_numEventMatching_ = tools::param(this, "EM_NUM_EVENT_MATCHING", 3000);
+  EM_patch_intensity_threshold_ = tools::param(this, "EM_PATCH_INTENSITY_THRESHOLD", 125);
+  EM_patch_valid_ratio_ = tools::param(this, "EM_PATCH_VALID_RATIO", 0.1);
   em_.resetParameters(EM_Time_THRESHOLD_, EM_EPIPOLAR_THRESHOLD_, EM_TS_NCC_THRESHOLD_,
                       EM_patch_size_X_, EM_patch_size_Y_, EM_patch_intensity_threshold_, EM_patch_valid_ratio_);
   // Event Block Matching (BM) parameters
-  BM_half_slice_thickness_ = tools::param(pnh_, "BM_half_slice_thickness", 0.001);
-  BM_MAX_NUM_EVENTS_PER_MATCHING_ = tools::param(pnh_, "BM_MAX_NUM_EVENTS_PER_MATCHING", 300);
-  BM_patch_size_X_ = tools::param(pnh_, "patch_size_X", 25);
-  BM_patch_size_Y_ = tools::param(pnh_, "patch_size_Y", 25);
-  BM_min_disparity_ = tools::param(pnh_, "BM_min_disparity", 3);
-  BM_max_disparity_ = tools::param(pnh_, "BM_max_disparity", 40);
-  BM_step_          = tools::param(pnh_, "BM_step", 1);
-  BM_ZNCC_Threshold_= tools::param(pnh_, "BM_ZNCC_Threshold", 0.1);
-  BM_bUpDownConfiguration_ = tools::param(pnh_, "BM_bUpDownConfiguration", false);
+  BM_half_slice_thickness_ = tools::param(this, "BM_half_slice_thickness", 0.001);
+  BM_MAX_NUM_EVENTS_PER_MATCHING_ = tools::param(this, "BM_MAX_NUM_EVENTS_PER_MATCHING", 300);
+  BM_patch_size_X_ = tools::param(this, "patch_size_X", 25);
+  BM_patch_size_Y_ = tools::param(this, "patch_size_Y", 25);
+  BM_min_disparity_ = tools::param(this, "BM_min_disparity", 3);
+  BM_max_disparity_ = tools::param(this, "BM_max_disparity", 40);
+  BM_step_          = tools::param(this, "BM_step", 1);
+  BM_ZNCC_Threshold_= tools::param(this, "BM_ZNCC_Threshold", 0.1);
+  BM_bUpDownConfiguration_ = tools::param(this, "BM_bUpDownConfiguration", false);
 
   // SGM [45] parameters
   num_disparities_ = 16 * 3;
@@ -126,7 +121,7 @@ esvo_MVStereo::esvo_MVStereo(
 #endif
 
   // mvstereo mode
-  size_t MVStereoMode = tools::param(pnh_, "MVStereoMode", 1);
+  size_t MVStereoMode = tools::param(this, "MVStereoMode", 1);
   msm_ = (eMVStereoMode)MVStereoMode;
 
   // initialize Event Block Matcher
@@ -134,20 +129,28 @@ esvo_MVStereo::esvo_MVStereo(
                        BM_step_, BM_ZNCC_Threshold_, BM_bUpDownConfiguration_);
 
   // callbacks functions
-  events_left_sub_  = nh_.subscribe<dvs_msgs::EventArray>("events_left", 0, boost::bind(&esvo_MVStereo::eventsCallback, this, _1, boost::ref(events_left_)));
-  events_right_sub_ = nh_.subscribe<dvs_msgs::EventArray>("events_right", 0, boost::bind(&esvo_MVStereo::eventsCallback, this, _1, boost::ref(events_right_)));
-  stampedPose_sub_  = nh_.subscribe("stamped_pose", 0, &esvo_MVStereo::stampedPoseCallback, this);
-  TS_sync_.registerCallback(boost::bind(&esvo_MVStereo::timeSurfaceCallback, this, _1, _2));
-  // TF
-  tf_ = std::make_shared<tf::Transformer>(true, ros::Duration(100.0));
+  events_left_sub_ = this->create_subscription<dvs_msgs::msg::EventArray>(
+    "events_left", 0, [this](const dvs_msgs::msg::EventArray::SharedPtr msg) { eventsCallback(msg, events_left_); });
+  events_right_sub_ = this->create_subscription<dvs_msgs::msg::EventArray>(
+    "events_right", 0, [this](const dvs_msgs::msg::EventArray::SharedPtr msg) { eventsCallback(msg, events_right_); });
+  stampedPose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+    "stamped_pose", 0, std::bind(&esvo_MVStereo::stampedPoseCallback, this, std::placeholders::_1));
+  // message_filters subscribers and synchronizer
+  TS_left_sub_.subscribe(this, "time_surface_left", rmw_qos_profile_default);
+  TS_right_sub_.subscribe(this, "time_surface_right", rmw_qos_profile_default);
+  TS_sync_ = std::make_shared<message_filters::Synchronizer<ExactSyncPolicy>>(ExactSyncPolicy(10), TS_left_sub_, TS_right_sub_);
+  TS_sync_->registerCallback(std::bind(&esvo_MVStereo::timeSurfaceCallback, this, std::placeholders::_1, std::placeholders::_2));
+  // TF2
+  tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+  tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
   // result publishers
-  invDepthMap_pub_ = it_.advertise("Inverse_Depth_Map", 1);
-  stdVarMap_pub_ = it_.advertise("Standard_Variance_Map", 1);
-  ageMap_pub_ = it_.advertise("Age_Map", 1);
-  costMap_pub_ = it_.advertise("Cost_Map", 1);
-  pc_pub_ = nh_.advertise<PointCloud>("/esvo_mvstereo/pointcloud_world", 1);
-  pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("/esvo_mvstereo/pose_pub", 1);
+  invDepthMap_pub_ = image_transport::create_publisher(this, "Inverse_Depth_Map");
+  stdVarMap_pub_ = image_transport::create_publisher(this, "Standard_Variance_Map");
+  ageMap_pub_ = image_transport::create_publisher(this, "Age_Map");
+  costMap_pub_ = image_transport::create_publisher(this, "Cost_Map");
+  pc_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/esvo_mvstereo/pointcloud_world", 1);
+  pose_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("/esvo_mvstereo/pose_pub", 1);
 
   TotalNumFusion_ = 0;
 
@@ -160,36 +163,30 @@ esvo_MVStereo::esvo_MVStereo(
                             std::move(mapping_thread_promise_), std::move(reset_future_));
   MappingThread.detach();
 
-  // Dynamic reconfigure
-  dynamic_reconfigure_callback_ = boost::bind(&esvo_MVStereo::onlineParameterChangeCallback, this, _1, _2);
-  server_.reset(new dynamic_reconfigure::Server<DVS_MappingStereoConfig>(nh_private));
-  server_->setCallback(dynamic_reconfigure_callback_);
+  // Dynamic reconfigure not available in ROS2
+  // dynamic_reconfigure_callback_ = boost::bind(&esvo_MVStereo::onlineParameterChangeCallback, this, _1, _2);
+  // server_.reset(new dynamic_reconfigure::Server<DVS_MappingStereoConfig>(nh_private));
+  // server_->setCallback(dynamic_reconfigure_callback_);
 }
 
 esvo_MVStereo::~esvo_MVStereo()
 {
-  pc_pub_.shutdown();
-  pose_pub_.shutdown();
-  invDepthMap_pub_.shutdown();
-  stdVarMap_pub_.shutdown();
-  ageMap_pub_.shutdown();
-  costMap_pub_.shutdown();
 }
 
 void esvo_MVStereo::MappingLoop(
   std::promise<void> prom_mapping,
   std::future<void> future_reset)
 {
-  ros::Rate r(mapping_rate_hz_);
+  rclcpp::Rate r(mapping_rate_hz_);
 
-  while (ros::ok())
+  while (rclcpp::ok())
   {
     if(changed_frame_rate_)
     {
 #ifdef ESVO_CORE_MVSTEREO_LOG
-      ROS_INFO("Changing mapping framerate to %d Hz", mapping_rate_hz_);
+      RCLCPP_INFO(this->get_logger(),"Changing mapping framerate to %d Hz", mapping_rate_hz_);
 #endif
-      r = ros::Rate(mapping_rate_hz_);
+      r = rclcpp::Rate(mapping_rate_hz_);
       changed_frame_rate_ = false;
     }
     //
@@ -236,7 +233,7 @@ void esvo_MVStereo::MappingLoop(
   }
 }
 
-void esvo_MVStereo::MappingAtTime(const ros::Time& t)
+void esvo_MVStereo::MappingAtTime(const rclcpp::Time& t)
 {
   TicToc tt_mapping;
   double t_overall_count = 0;
@@ -551,7 +548,7 @@ void esvo_MVStereo::MappingAtTime(const ros::Time& t)
 
 bool esvo_MVStereo::dataTransferring()
 {
-  TS_obs_ = std::make_pair(ros::Time(), TimeSurfaceObservation());// clean the TS obs.
+  TS_obs_ = std::make_pair(rclcpp::Time(), TimeSurfaceObservation());// clean the TS obs.
   if(TS_history_.size() <= 10)
     return false;
   totalNumCount_ = 0;
@@ -612,8 +609,8 @@ bool esvo_MVStereo::dataTransferring()
   if(msm_ == PURE_SEMI_GLOBAL_MATCHING)
   {
     vEventsPtr_left_SGM_.clear();
-    ros::Time t_end    = TS_obs_.first;
-    ros::Time t_begin(std::max(0.0, t_end.toSec() - 2 * BM_half_slice_thickness_));
+    rclcpp::Time t_end    = TS_obs_.first;
+    rclcpp::Time t_begin(std::max(0.0, t_end.seconds() - 2 * BM_half_slice_thickness_));
     auto ev_end_it     = tools::EventBuffer_lower_bound(events_left_, t_end);
     auto ev_begin_it   = tools::EventBuffer_lower_bound(events_left_, t_begin);
     vEventsPtr_left_SGM_.reserve(30000);
@@ -632,8 +629,8 @@ bool esvo_MVStereo::dataTransferring()
     vCloseEventsPtr_left_.clear();// will be denoised using the mask above.
 
     // load allEvent
-    ros::Time t_end    = TS_obs_.first;
-    ros::Time t_begin(std::max(0.0, t_end.toSec() - 10 * BM_half_slice_thickness_));
+    rclcpp::Time t_end    = TS_obs_.first;
+    rclcpp::Time t_begin(std::max(0.0, t_end.seconds() - 10 * BM_half_slice_thickness_));
     auto ev_end_it     = tools::EventBuffer_lower_bound(events_left_, t_end);
     auto ev_begin_it   = tools::EventBuffer_lower_bound(events_left_, t_begin);//events_left_.begin();
     const size_t MAX_NUM_Event_INVOLVED = 10000;
@@ -652,13 +649,13 @@ bool esvo_MVStereo::dataTransferring()
     // load transformation for all virtual views
     // the sampling interval is 0.5 ms)
     st_map_.clear();
-    ros::Time t_tmp = t_begin;
-    while(t_tmp.toSec() <= t_end.toSec())
+    rclcpp::Time t_tmp = t_begin;
+    while(t_tmp.seconds() <= t_end.seconds())
     {
       Transformation tr;
       if(getPoseAt(t_tmp, tr, dvs_frame_id_))
         st_map_.emplace(t_tmp, tr);
-      t_tmp = ros::Time(t_tmp.toSec() + 0.05 * BM_half_slice_thickness_);
+      t_tmp = rclcpp::Time(t_tmp.seconds() + 0.05 * BM_half_slice_thickness_);
     }
 #ifdef ESVO_CORE_MVSTEREO_LOG
     LOG(INFO) << "Data Transfering (stampTransformation map): " << st_map_.size();
@@ -667,64 +664,60 @@ bool esvo_MVStereo::dataTransferring()
   return true;
 }
 
-void esvo_MVStereo::stampedPoseCallback(
-  const geometry_msgs::PoseStampedConstPtr &ps_msg)
+void esvo_MVStereo::stampedPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr ps_msg)
 {
   std::lock_guard<std::mutex> lock(data_mutex_);
   // To check inconsistent timestamps and reset.
   static constexpr double max_time_diff_before_reset_s = 0.5;
-  const ros::Time stamp_first_event = ps_msg->header.stamp;
-  std::string *err_tf = new std::string();
-  int iGetLastest_common_time =
-    tf_->getLatestCommonTime(dvs_frame_id_.c_str(), ps_msg->header.frame_id, tf_lastest_common_time_, err_tf);
-  delete err_tf;
+  const rclcpp::Time stamp_first_event = ps_msg->header.stamp;
 
-  if( tf_lastest_common_time_.toSec() != 0)
+  if( tf_lastest_common_time_.seconds() != 0)
   {
-    const double dt = stamp_first_event.toSec() - tf_lastest_common_time_.toSec();
+    const double dt = stamp_first_event.seconds() - tf_lastest_common_time_.seconds();
     if(dt < 0 || std::fabs(dt) >= max_time_diff_before_reset_s)
     {
-      ROS_INFO("Inconsistent event timestamps detected <stampedPoseCallback> (new: %f, old %f), resetting.",
-               stamp_first_event.toSec(), tf_lastest_common_time_.toSec());
+      RCLCPP_INFO(this->get_logger(),"Inconsistent event timestamps detected <stampedPoseCallback> (new: %f, old %f), resetting.",
+               stamp_first_event.seconds(), tf_lastest_common_time_.seconds());
       reset();
     }
   }
 
-  // add pose to tf
-  tf::Transform tf(
-    tf::Quaternion(
-      ps_msg->pose.orientation.x,
-      ps_msg->pose.orientation.y,
-      ps_msg->pose.orientation.z,
-      ps_msg->pose.orientation.w),
-    tf::Vector3(
-      ps_msg->pose.position.x,
-      ps_msg->pose.position.y,
-      ps_msg->pose.position.z));
-  tf::StampedTransform st(tf, ps_msg->header.stamp, ps_msg->header.frame_id, dvs_frame_id_.c_str());
-  tf_->setTransform(st);
+  // add pose to tf using tf2
+  geometry_msgs::msg::TransformStamped transform_stamped;
+  transform_stamped.header = ps_msg->header;
+  transform_stamped.child_frame_id = dvs_frame_id_;
+  transform_stamped.transform.translation.x = ps_msg->pose.position.x;
+  transform_stamped.transform.translation.y = ps_msg->pose.position.y;
+  transform_stamped.transform.translation.z = ps_msg->pose.position.z;
+  transform_stamped.transform.rotation = ps_msg->pose.orientation;
+
+  // broadcast the transform
+  static tf2_ros::TransformBroadcaster br(this);
+  br.sendTransform(transform_stamped);
+
+  // Also set it in the buffer for lookups
+  tf_buffer_->setTransform(transform_stamped, "esvo_mvstereo", false);
+  tf_lastest_common_time_ = stamp_first_event;
 }
 
 // return the pose of the left event cam at time t.
 bool esvo_MVStereo::getPoseAt(
-  const ros::Time &t,
+  const rclcpp::Time &t,
   esvo_core::Transformation &Tr,// T_world_virtual
   const std::string& source_frame )
 {
-  std::string* err_msg = new std::string();
-  if(!tf_->canTransform(world_frame_id_, source_frame, t, err_msg))
+  try
   {
+    if(!tf_buffer_->canTransform(world_frame_id_, source_frame, t, rclcpp::Duration::from_seconds(0.0)))
+    {
 #ifdef ESVO_CORE_MVSTEREO_LOG
-    LOG(WARNING) << t.toNSec() << " : " << *err_msg;
+      LOG(WARNING) << t.nanoseconds() << " : Cannot transform";
 #endif
-    delete err_msg;
-    return false;
-  }
-  else
-  {
-    tf::StampedTransform st;
-    tf_->lookupTransform(world_frame_id_, source_frame, t, st);
-    tf::transformTFToKindr(st, &Tr);
+      return false;
+    }
+    geometry_msgs::msg::TransformStamped transform_stamped =
+      tf_buffer_->lookupTransform(world_frame_id_, source_frame, t);
+    tf2::transformTFToKindr(transform_stamped, &Tr);
     // HARDCODED: The GT pose of rpg dataset is the pose of stereo rig, namely that of the marker.
     if(std::strcmp(source_frame.c_str(), "marker") == 0)
     {
@@ -741,35 +734,42 @@ bool esvo_MVStereo::getPoseAt(
     }
     return true;
   }
+  catch (tf2::TransformException &ex)
+  {
+#ifdef ESVO_CORE_MVSTEREO_LOG
+    LOG(WARNING) << t.nanoseconds() << " : " << ex.what();
+#endif
+    return false;
+  }
 }
 
 void esvo_MVStereo::eventsCallback(
-  const dvs_msgs::EventArray::ConstPtr& msg,
+  const dvs_msgs::msg::EventArray::SharedPtr msg,
   EventQueue& EQ)
 {
   std::lock_guard<std::mutex> lock(data_mutex_);
 
   static constexpr double max_time_diff_before_reset_s = 0.5;
-  const ros::Time stamp_first_event = msg->events[0].ts;
+  const rclcpp::Time stamp_first_event = msg->events[0].ts;
 
   // check time stamp inconsistency
   if(!msg->events.empty() && !EQ.empty())
   {
-    const double dt = stamp_first_event.toSec() - EQ.back().ts.toSec();
+    const double dt = stamp_first_event.seconds() - rclcpp::Time(EQ.back().ts).seconds();
     if(dt < 0 || std::fabs(dt) >= max_time_diff_before_reset_s)
     {
-      ROS_INFO("Inconsistent event timestamps detected <eventCallback> (new: %f, old %f), resetting.",
-               stamp_first_event.toSec(), events_left_.back().ts.toSec());
+      RCLCPP_INFO(this->get_logger(),"Inconsistent event timestamps detected <eventCallback> (new: %f, old %f), resetting.",
+               stamp_first_event.seconds(), rclcpp::Time(events_left_.back().ts).seconds());
       reset();
     }
   }
 
   // add new ones and remove old ones
-  for(const dvs_msgs::Event& e : msg->events)
+  for(const dvs_msgs::msg::Event& e : msg->events)
   {
     EQ.push_back(e);
     int i = EQ.size() - 2;
-    while(i >= 0 && EQ[i].ts > e.ts) // we may have to sort the queue, just in case the raw event messages do not come in a chronological order.
+    while(i >= 0 && rclcpp::Time(EQ[i].ts) > rclcpp::Time(e.ts)) // we may have to sort the queue, just in case the raw event messages do not come in a chronological order.
     {
       EQ[i+1] = EQ[i];
       i--;
@@ -790,20 +790,20 @@ void esvo_MVStereo::clearEventQueue(EventQueue& EQ)
 }
 
 void esvo_MVStereo::timeSurfaceCallback(
-  const sensor_msgs::ImageConstPtr& time_surface_left,
-  const sensor_msgs::ImageConstPtr& time_surface_right)
+  const sensor_msgs::msg::Image::ConstSharedPtr& time_surface_left,
+  const sensor_msgs::msg::Image::ConstSharedPtr& time_surface_right)
 {
   std::lock_guard<std::mutex> lock(data_mutex_);
   // check time-stamp inconsistency
   if(!TS_history_.empty())
   {
     static constexpr double max_time_diff_before_reset_s = 0.5;
-    const ros::Time stamp_last_image = TS_history_.rbegin()->first;
-    const double dt = time_surface_left->header.stamp.toSec() - stamp_last_image.toSec();
+    const rclcpp::Time stamp_last_image = TS_history_.rbegin()->first;
+    const double dt = time_surface_left->header.stamp.seconds() - stamp_last_image.seconds();
     if(dt < 0 || std::fabs(dt) >= max_time_diff_before_reset_s)
     {
-      ROS_INFO("Inconsistent frame timestamp detected <timeSurfaceCallback> (new: %f, old %f), resetting.",
-               time_surface_left->header.stamp.toSec(), stamp_last_image.toSec());
+      RCLCPP_INFO(this->get_logger(),"Inconsistent frame timestamp detected <timeSurfaceCallback> (new: %f, old %f), resetting.",
+               time_surface_left->header.stamp.seconds(), stamp_last_image.seconds());
       reset();
     }
   }
@@ -816,12 +816,12 @@ void esvo_MVStereo::timeSurfaceCallback(
   }
   catch (cv_bridge::Exception& e)
   {
-    ROS_ERROR("cv_bridge exception: %s", e.what());
+    RCLCPP_ERROR(this->get_logger(),"cv_bridge exception: %s", e.what());
     return;
   }
 
   // push back the new time surface map
-  ros::Time t_new_TS = time_surface_left->header.stamp;
+  rclcpp::Time t_new_TS = time_surface_left->header.stamp;
   // Made the gradient computation optional which is up to the jacobian choice.
   if(dpSolver_.getProblemType() == NUMERICAL)
     TS_history_.emplace(t_new_TS, TimeSurfaceObservation(cv_ptr_left, cv_ptr_right, TS_id_));
@@ -850,7 +850,7 @@ void esvo_MVStereo::reset()
   events_left_.clear();
   events_right_.clear();
   TS_history_.clear();
-  tf_->clear();
+  tf_buffer_->clear();
   pc_->clear();
   TS_id_ = 0;
   depthFramePtr_->clear();
@@ -879,6 +879,8 @@ void esvo_MVStereo::reset()
   MappingThread.detach();
 }
 
+// TODO: Replace with ROS2 parameter callbacks when needed
+#if 0  // dynamic_reconfigure not available in ROS2
 void esvo_MVStereo::onlineParameterChangeCallback(DVS_MappingStereoConfig &config, uint32_t level)
 {
   bool have_display_parameters_changed = false;
@@ -956,11 +958,12 @@ void esvo_MVStereo::onlineParameterChangeCallback(DVS_MappingStereoConfig &confi
     reset();
   }
 }
+#endif  // dynamic_reconfigure
 
 void esvo_MVStereo::publishMappingResults(
   DepthMap::Ptr depthMapPtr,
   Transformation tr,
-  ros::Time t)
+  rclcpp::Time t)
 {
   cv::Mat invDepthImage, stdVarImage, ageImage, costImage, eventImage, confidenceMap;
 
@@ -982,10 +985,10 @@ void esvo_MVStereo::publishMappingResults(
 void esvo_MVStereo::saveDepthMap(
   DepthMap::Ptr& depthMapPtr,
   std::string& saveDir,
-  ros::Time t)
+  rclcpp::Time t)
 {
   std::ofstream of;
-  std::string savePath(saveDir.append(std::to_string(t.toNSec())));
+  std::string savePath(saveDir.append(std::to_string(t.nanoseconds())));
   savePath.append(".txt");
   of.open(savePath, std::ofstream::out);
   if(of.is_open())
@@ -1002,9 +1005,9 @@ void esvo_MVStereo::saveDepthMap(
 void esvo_MVStereo::publishPointCloud(
   DepthMap::Ptr& depthMapPtr,
   Transformation & tr,
-  ros::Time& t)
+  rclcpp::Time& t)
 {
-  sensor_msgs::PointCloud2::Ptr pc_to_publish (new sensor_msgs::PointCloud2);
+  auto pc_to_publish = std::make_shared<sensor_msgs::msg::PointCloud2>();
   Eigen::Matrix<double, 4, 4> T_world_result = tr.getTransformationMatrix();
   pc_->clear();
   pc_->reserve(50000);
@@ -1034,13 +1037,13 @@ void esvo_MVStereo::publishPointCloud(
 #endif
     pcl::toROSMsg(*pc_, *pc_to_publish);
     pc_to_publish->header.stamp = t;
-    pc_pub_.publish(pc_to_publish);
+    pc_pub_->publish(*pc_to_publish);
   }
 }
 
-void esvo_MVStereo::publishKFPose(const ros::Time& t, Transformation& tr)
+void esvo_MVStereo::publishKFPose(const rclcpp::Time& t, Transformation& tr)
 {
-  geometry_msgs::PoseStampedPtr ps_ptr(new geometry_msgs::PoseStamped());
+  auto ps_ptr = std::make_shared<geometry_msgs::msg::PoseStamped>();
   ps_ptr->header.stamp = t;
   ps_ptr->header.frame_id = world_frame_id_;
   ps_ptr->pose.position.x = tr.getPosition()(0);
@@ -1050,22 +1053,22 @@ void esvo_MVStereo::publishKFPose(const ros::Time& t, Transformation& tr)
   ps_ptr->pose.orientation.y = tr.getRotation().y();
   ps_ptr->pose.orientation.z = tr.getRotation().z();
   ps_ptr->pose.orientation.w = tr.getRotation().w();
-  pose_pub_.publish(ps_ptr);
+  pose_pub_->publish(*ps_ptr);
 }
 
 void
 esvo_MVStereo::publishImage(
   const cv::Mat &image,
-  const ros::Time & t,
+  const rclcpp::Time & t,
   image_transport::Publisher & pub,
   std::string encoding)
 {
   if(pub.getNumSubscribers() == 0)
     return;
 
-  std_msgs::Header header;
+  std_msgs::msg::Header header;
   header.stamp = t;
-  sensor_msgs::ImagePtr msg = cv_bridge::CvImage(header, encoding.c_str(), image).toImageMsg();
+  sensor_msgs::msg::Image::SharedPtr msg = cv_bridge::CvImage(header, encoding.c_str(), image).toImageMsg();
   pub.publish(msg);
 }
 
@@ -1096,15 +1099,15 @@ void esvo_MVStereo::vEMP2vDP(
 void esvo_MVStereo::eventSlicingForEM(std::vector<EventSlice>& eventSlices)
 {
   size_t numSlice = std::floor(
-    (t_upBound_.toSec() - t_lowBound_.toSec()) / EM_Slice_Thickness_);// a small number of events are ignored at this step.
+    (t_upBound_.seconds() - t_lowBound_.seconds()) / EM_Slice_Thickness_);// a small number of events are ignored at this step.
   eventSlices.reserve(numSlice);
-  std::vector<dvs_msgs::Event *>::iterator it_tmp = vEventsPtr_left_.begin();
+  std::vector<dvs_msgs::msg::Event *>::iterator it_tmp = vEventsPtr_left_.begin();
   size_t totalNumEvent = 0;
   for (size_t i = 0; i < numSlice; i++)
   {
     EventSlice es(EM_Slice_Thickness_);
     es.it_begin_ = it_tmp;
-    ros::Time t_end((*it_tmp)->ts.toSec() + es.SLICE_THICKNESS_);
+    rclcpp::Time t_end((*it_tmp)->ts.seconds() + es.SLICE_THICKNESS_);
     es.it_end_ = tools::EventVecPtr_lower_bound(vEventsPtr_left_, t_end);
     if (es.it_end_ == vEventsPtr_left_.end())
       es.it_end_--;
@@ -1125,7 +1128,7 @@ void esvo_MVStereo::eventSlicingForEM(std::vector<EventSlice>& eventSlices)
 }
 
 void esvo_MVStereo::createEdgeMask(
-  std::vector<dvs_msgs::Event *> &vEventsPtr,
+  std::vector<dvs_msgs::msg::Event *> &vEventsPtr,
   PerspectiveCamera::Ptr &camPtr,
   cv::Mat& edgeMap,
   std::vector<std::pair<size_t, size_t> >& vEdgeletCoordinates,
@@ -1170,7 +1173,7 @@ void esvo_MVStereo::createEdgeMask(
 }
 
 void esvo_MVStereo::createDenoisingMask(
-  std::vector<dvs_msgs::Event *>& vAllEventsPtr,
+  std::vector<dvs_msgs::msg::Event *>& vAllEventsPtr,
   cv::Mat& mask,
   size_t row, size_t col)
 {
@@ -1180,8 +1183,8 @@ void esvo_MVStereo::createDenoisingMask(
 }
 
 void esvo_MVStereo::extractDenoisedEvents(
-  std::vector<dvs_msgs::Event *> &vCloseEventsPtr,
-  std::vector<dvs_msgs::Event *> &vEdgeEventsPtr,
+  std::vector<dvs_msgs::msg::Event *> &vCloseEventsPtr,
+  std::vector<dvs_msgs::msg::Event *> &vEdgeEventsPtr,
   cv::Mat& mask,
   size_t maxNum)
 {

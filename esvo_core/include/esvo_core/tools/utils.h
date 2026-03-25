@@ -4,16 +4,15 @@
 #include <Eigen/Eigen>
 #include <iostream>
 
-#include <cv_bridge/cv_bridge.h>
+#include <rclcpp/rclcpp.hpp>
+#include <cv_bridge/cv_bridge.hpp>
 
-#include <tf/tf.h>
-#include <tf/tfMessage.h>
-#include <tf/transform_datatypes.h>
-#include <tf_conversions/tf_eigen.h>
+#include <tf2/LinearMath/Transform.h>
+#include <tf2_eigen/tf2_eigen.hpp>
 #include <kindr/minimal/quat-transformation.h>
 
-#include <dvs_msgs/Event.h>
-#include <dvs_msgs/EventArray.h>
+#include <dvs_msgs/msg/event.hpp>
+#include <dvs_msgs/msg/event_array.hpp>
 
 #include <opencv2/core/eigen.hpp>
 #include <opencv2/imgproc.hpp>
@@ -24,7 +23,7 @@
 #include <esvo_core/tools/TicToc.h>
 
 #include <pcl/point_types.h>
-#include <pcl_ros/point_cloud.h>
+#include <pcl_conversions/pcl_conversions.h>
 
 using namespace std;
 namespace esvo_core
@@ -36,38 +35,38 @@ namespace tools
 #define NUM_THREAD_MAPPING 4
 
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
-using RefPointCloudMap = std::map<ros::Time, PointCloud::Ptr>;
+using RefPointCloudMap = std::map<rclcpp::Time, PointCloud::Ptr>;
 
 using Transformation = kindr::minimal::QuatTransformation;
 
-inline static std::vector<dvs_msgs::Event*>::iterator EventVecPtr_lower_bound(
-  std::vector<dvs_msgs::Event*>& vEventPtr, ros::Time& t)
+inline static std::vector<dvs_msgs::msg::Event*>::iterator EventVecPtr_lower_bound(
+  std::vector<dvs_msgs::msg::Event*>& vEventPtr, rclcpp::Time& t)
 {
   return std::lower_bound(vEventPtr.begin(), vEventPtr.end(), t,
-                          [](const dvs_msgs::Event* e, const ros::Time &t){return e->ts.toSec() < t.toSec();});
+                          [](const dvs_msgs::msg::Event* e, const rclcpp::Time &t){return rclcpp::Time(e->ts).seconds() < t.seconds();});
 }
 
-using EventQueue = std::deque<dvs_msgs::Event>;
+using EventQueue = std::deque<dvs_msgs::msg::Event>;
 inline static EventQueue::iterator EventBuffer_lower_bound(
-  EventQueue& eb, ros::Time& t)
+  EventQueue& eb, rclcpp::Time& t)
 {
   return std::lower_bound(eb.begin(), eb.end(), t,
-    [](const dvs_msgs::Event & e, const ros::Time & t) {return e.ts.toSec() < t.toSec();});
+    [](const dvs_msgs::msg::Event & e, const rclcpp::Time & t) {return rclcpp::Time(e.ts).seconds() < t.seconds();});
 }
 
 inline static EventQueue::iterator EventBuffer_upper_bound(
-  EventQueue& eb, ros::Time& t)
+  EventQueue& eb, rclcpp::Time& t)
 {
   return std::upper_bound(eb.begin(), eb.end(), t,
-    [](const ros::Time & t, const dvs_msgs::Event & e) {return t.toSec() < e.ts.toSec();});
+    [](const rclcpp::Time & t, const dvs_msgs::msg::Event & e) {return t.seconds() < rclcpp::Time(e.ts).seconds();});
 }
 
-using StampTransformationMap = std::map<ros::Time, tools::Transformation>;
+using StampTransformationMap = std::map<rclcpp::Time, tools::Transformation>;
 inline static StampTransformationMap::iterator StampTransformationMap_lower_bound(
-  StampTransformationMap& stm, ros::Time& t)
+  StampTransformationMap& stm, rclcpp::Time& t)
 {
   return std::lower_bound(stm.begin(), stm.end(), t,
-    [](const std::pair<ros::Time, tools::Transformation>& st, const ros::Time& t){return st.first.toSec() < t.toSec();});
+    [](const std::pair<rclcpp::Time, tools::Transformation>& st, const rclcpp::Time& t){return st.first.seconds() < t.seconds();});
 }
 
 /******************* Used by Block Match ********************/

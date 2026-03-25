@@ -1,14 +1,16 @@
 #ifndef ESVO_CORE_ESVO_MVSTEREO_H
 #define ESVO_CORE_ESVO_MVSTEREO_H
 
-#include <ros/ros.h>
-#include <image_transport/image_transport.h>
+#include <rclcpp/rclcpp.hpp>
+#include <image_transport/image_transport.hpp>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/exact_time.h>
 
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_ros/buffer.h>
 
 #include <esvo_core/container/CameraSystem.h>
 #include <esvo_core/container/DepthMap.h>
@@ -21,8 +23,8 @@
 #include <esvo_core/core/EventMatcher.h>
 #include <esvo_core/tools/Visualization.h>
 #include <esvo_core/tools/utils.h>
-#include <esvo_core/DVS_MappingStereoConfig.h>
-#include <dynamic_reconfigure/server.h>
+// #include <esvo_core/DVS_MappingStereoConfig.h>
+// #include <dynamic_reconfigure/server.h>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -33,9 +35,11 @@
 #include <mutex>
 #include <future>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <pcl/point_types.h>
-#include <pcl_ros/point_cloud.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 
 namespace esvo_core
 {
@@ -48,32 +52,30 @@ enum eMVStereoMode
   BM_PLUS_ESTIMATION,       //3 (this one is ESVO's mapping method, namely BM + nonliear opt.)
   PURE_SEMI_GLOBAL_MATCHING //4 (this one implements SGM [45])
 };
-class esvo_MVStereo
+class esvo_MVStereo : public rclcpp::Node
 {
   public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  esvo_MVStereo(
-    const ros::NodeHandle& nh,
-    const ros::NodeHandle& nh_private);
+  esvo_MVStereo();
   virtual ~esvo_MVStereo();
 
   // functions regarding mapping
   void MappingLoop(std::promise<void> prom_mapping, std::future<void> future_reset);
-  void MappingAtTime(const ros::Time& t);
+  void MappingAtTime(const rclcpp::Time& t);
   bool dataTransferring();
   void vEMP2vDP(std::vector<EventMatchPair>& vEMP,std::vector<DepthPoint>& vdp);
   void eventSlicingForEM(std::vector<EventSlice>& eventSlices);
 
   // callback functions
-  void stampedPoseCallback(const geometry_msgs::PoseStampedConstPtr &ps_msg);
-  void eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg, EventQueue& EQ);
+  void stampedPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr ps_msg);
+  void eventsCallback(const dvs_msgs::msg::EventArray::SharedPtr msg, EventQueue& EQ);
   void timeSurfaceCallback(
-    const sensor_msgs::ImageConstPtr& time_surface_left,
-    const sensor_msgs::ImageConstPtr& time_surface_right);
-  void onlineParameterChangeCallback(DVS_MappingStereoConfig &config, uint32_t level);
+    const sensor_msgs::msg::Image::ConstSharedPtr& time_surface_left,
+    const sensor_msgs::msg::Image::ConstSharedPtr& time_surface_right);
+  // void onlineParameterChangeCallback(DVS_MappingStereoConfig &config, uint32_t level);
 
   // utils
-  bool getPoseAt(const ros::Time& t, Transformation& Tr, const std::string& source_frame);
+  bool getPoseAt(const rclcpp::Time& t, Transformation& Tr, const std::string& source_frame);
   void clearEventQueue(EventQueue& EQ);
   void reset();
 
@@ -81,24 +83,24 @@ class esvo_MVStereo
   void publishMappingResults(
     DepthMap::Ptr depthMapPtr,
     Transformation tr,
-    ros::Time t);
+    rclcpp::Time t);
   void publishPointCloud(
     DepthMap::Ptr& depthMapPtr,
     Transformation & tr,
-    ros::Time& t);
+    rclcpp::Time& t);
   void publishImage(
     const cv::Mat &image,
-    const ros::Time & t,
+    const rclcpp::Time & t,
     image_transport::Publisher & pub,
     std::string encoding = "bgr8");
-  void publishKFPose(const ros::Time& t, Transformation& tr);
+  void publishKFPose(const rclcpp::Time& t, Transformation& tr);
   void saveDepthMap(
     DepthMap::Ptr& depthMapPtr,
     std::string& saveDir,
-    ros::Time t);
+    rclcpp::Time t);
 
   void createEdgeMask(
-    std::vector<dvs_msgs::Event *>& vEventsPtr,
+    std::vector<dvs_msgs::msg::Event *>& vEventsPtr,
     PerspectiveCamera::Ptr& camPtr,
     cv::Mat& edgeMap,
     std::vector<std::pair<size_t, size_t> >& vEdgeletCoordinates,
@@ -106,35 +108,33 @@ class esvo_MVStereo
     size_t radius = 0);
 
   void createDenoisingMask(
-    std::vector<dvs_msgs::Event *>& vAllEventsPtr,
+    std::vector<dvs_msgs::msg::Event *>& vAllEventsPtr,
     cv::Mat& mask,
     size_t row, size_t col);
 
   void extractDenoisedEvents(
-    std::vector<dvs_msgs::Event *> &vCloseEventsPtr,
-    std::vector<dvs_msgs::Event *> &vEdgeEventsPtr,
+    std::vector<dvs_msgs::msg::Event *> &vCloseEventsPtr,
+    std::vector<dvs_msgs::msg::Event *> &vEdgeEventsPtr,
     cv::Mat& mask,
     size_t maxNum = 5000);
 
   private:
-  ros::NodeHandle nh_, pnh_;
-
-  // Subcribers
-  ros::Subscriber events_left_sub_, events_right_sub_;
-  ros::Subscriber stampedPose_sub_;
-  message_filters::Subscriber<sensor_msgs::Image> TS_left_sub_, TS_right_sub_;
+  // Subscribers
+  rclcpp::Subscription<dvs_msgs::msg::EventArray>::SharedPtr events_left_sub_, events_right_sub_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr stampedPose_sub_;
+  message_filters::Subscriber<sensor_msgs::msg::Image> TS_left_sub_, TS_right_sub_;
 
   // Publishers
-  ros::Publisher pc_pub_;
-  image_transport::ImageTransport it_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pc_pub_;
+  image_transport::Publisher it_pub_;
 
   // Time-Surface sync policy
-  typedef message_filters::sync_policies::ExactTime<sensor_msgs::Image, sensor_msgs::Image> ExactSyncPolicy;
-  message_filters::Synchronizer<ExactSyncPolicy> TS_sync_;
+  typedef message_filters::sync_policies::ExactTime<sensor_msgs::msg::Image, sensor_msgs::msg::Image> ExactSyncPolicy;
+  std::shared_ptr<message_filters::Synchronizer<ExactSyncPolicy>> TS_sync_;
 
-  // dynamic configuration (modify parameters online)
-  boost::shared_ptr<dynamic_reconfigure::Server<DVS_MappingStereoConfig> > server_;
-  dynamic_reconfigure::Server<DVS_MappingStereoConfig>::CallbackType dynamic_reconfigure_callback_;
+  // dynamic configuration not available in ROS2
+  // boost::shared_ptr<dynamic_reconfigure::Server<DVS_MappingStereoConfig> > server_;
+  // dynamic_reconfigure::Server<DVS_MappingStereoConfig>::CallbackType dynamic_reconfigure_callback_;
 
   // offline data
   std::string dvs_frame_id_;
@@ -147,9 +147,10 @@ class esvo_MVStereo
   TimeSurfaceHistory TS_history_;
   StampedTimeSurfaceObs TS_obs_;
   StampTransformationMap st_map_;
-  std::shared_ptr<tf::Transformer> tf_;
+  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
   size_t TS_id_;
-  ros::Time tf_lastest_common_time_;
+  rclcpp::Time tf_lastest_common_time_;
 
   // system
   eMVStereoMode msm_;
@@ -162,13 +163,13 @@ class esvo_MVStereo
   EventBM ebm_;
 
   // data transfer
-  std::vector<dvs_msgs::Event *> vEventsPtr_left_, vEventsPtr_right_;// for EM
-  ros::Time t_lowBound_, t_upBound_; // for EM
-  std::vector<dvs_msgs::Event *> vALLEventsPtr_left_;// for BM
-  std::vector<dvs_msgs::Event *> vCloseEventsPtr_left_;// for BM
-  std::vector<dvs_msgs::Event *> vDenoisedEventsPtr_left_;// for BM
+  std::vector<dvs_msgs::msg::Event *> vEventsPtr_left_, vEventsPtr_right_;// for EM
+  rclcpp::Time t_lowBound_, t_upBound_; // for EM
+  std::vector<dvs_msgs::msg::Event *> vALLEventsPtr_left_;// for BM
+  std::vector<dvs_msgs::msg::Event *> vCloseEventsPtr_left_;// for BM
+  std::vector<dvs_msgs::msg::Event *> vDenoisedEventsPtr_left_;// for BM
   size_t totalNumCount_;// for both
-  std::vector<dvs_msgs::Event *> vEventsPtr_left_SGM_;// for SGM
+  std::vector<dvs_msgs::msg::Event *> vEventsPtr_left_SGM_;// for SGM
 
   // result
   PointCloud::Ptr pc_;
@@ -234,7 +235,7 @@ class esvo_MVStereo
   int uniqueness_ratio_;
   cv::Ptr<cv::StereoSGBM> sgbm_;
 
-  ros::Publisher pose_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_pub_;
   image_transport::Publisher invDepthMap_pub_, stdVarMap_pub_, ageMap_pub_, costMap_pub_;
   // For counting the total number of fusion
   size_t TotalNumFusion_;

@@ -2,11 +2,9 @@
 
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "esvo_MVStereo");
-  ros::NodeHandle nh;
-  ros::NodeHandle nh_private("~");
-
-  esvo_core::esvo_MVStereo mvs(nh, nh_private);
-  ros::spin();
+  rclcpp::init(argc, argv);
+  auto node = std::make_shared<esvo_core::esvo_MVStereo>();
+  rclcpp::spin(node);
+  rclcpp::shutdown();
   return 0;
 }

@@ -1,14 +1,16 @@
 #ifndef ESVO_CORE_MAPPING_H
 #define ESVO_CORE_MAPPING_H
 
-#include <ros/ros.h>
-#include <image_transport/image_transport.h>
+#include <rclcpp/rclcpp.hpp>
+#include <image_transport/image_transport.hpp>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/exact_time.h>
 
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_ros/buffer.h>
 
 #include <esvo_core/container/CameraSystem.h>
 #include <esvo_core/container/DepthMap.h>
@@ -21,8 +23,9 @@
 #include <esvo_core/tools/utils.h>
 #include <esvo_core/tools/Visualization.h>
 
-#include <dynamic_reconfigure/server.h>
-#include <esvo_core/DVS_MappingStereoConfig.h>
+// dynamic_reconfigure not available in ROS2, use parameters instead
+// #include <dynamic_reconfigure/server.h>
+// #include <esvo_core/DVS_MappingStereoConfig.h>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -33,37 +36,38 @@
 #include <mutex>
 #include <future>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <pcl/point_types.h>
-#include <pcl_ros/point_cloud.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 
 namespace esvo_core
 {
 using namespace core;
-class esvo_Mapping
+class esvo_Mapping : public rclcpp::Node
 {
   public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  esvo_Mapping(const ros::NodeHandle& nh,
-               const ros::NodeHandle& nh_private);
+  esvo_Mapping();
   virtual ~esvo_Mapping();
 
   // mapping
   void MappingLoop(std::promise<void> prom_mapping, std::future<void> future_reset);
-  void MappingAtTime(const ros::Time& t);
-  bool InitializationAtTime(const ros::Time& t);
+  void MappingAtTime(const rclcpp::Time& t);
+  bool InitializationAtTime(const rclcpp::Time& t);
   bool dataTransferring();
 
   // callback functions
-  void stampedPoseCallback(const geometry_msgs::PoseStampedConstPtr &ps_msg);
-  void eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg, EventQueue& EQ);
+  void stampedPoseCallback(const geometry_msgs::msg::PoseStamped::SharedPtr ps_msg);
+  void eventsCallback(const dvs_msgs::msg::EventArray::SharedPtr msg, EventQueue& EQ);
   void timeSurfaceCallback(
-    const sensor_msgs::ImageConstPtr& time_surface_left,
-    const sensor_msgs::ImageConstPtr& time_surface_right);
-  void onlineParameterChangeCallback(DVS_MappingStereoConfig &config, uint32_t level);
+    const sensor_msgs::msg::Image::ConstSharedPtr& time_surface_left,
+    const sensor_msgs::msg::Image::ConstSharedPtr& time_surface_right);
+  // void onlineParameterChangeCallback(DVS_MappingStereoConfig &config, uint32_t level);
 
   // utils
-  bool getPoseAt(const ros::Time& t, Transformation& Tr, const std::string& source_frame);
+  bool getPoseAt(const rclcpp::Time& t, Transformation& Tr, const std::string& source_frame);
   void clearEventQueue(EventQueue& EQ);
   void reset();
 
@@ -71,20 +75,20 @@ class esvo_Mapping
   void publishMappingResults(
     DepthMap::Ptr depthMapPtr,
     Transformation tr,
-    ros::Time t);
+    rclcpp::Time t);
   void publishPointCloud(
     DepthMap::Ptr& depthMapPtr,
     Transformation & tr,
-    ros::Time& t);
+    rclcpp::Time& t);
   void publishImage(
     const cv::Mat &image,
-    const ros::Time & t,
+    const rclcpp::Time & t,
     image_transport::Publisher & pub,
     std::string encoding = "bgr8");
 
   /*** event processing ***/
   void createEdgeMask(
-    std::vector<dvs_msgs::Event *>& vEventsPtr,
+    std::vector<dvs_msgs::msg::Event *>& vEventsPtr,
     PerspectiveCamera::Ptr& camPtr,
     cv::Mat& edgeMap,
     std::vector<std::pair<size_t, size_t> >& vEdgeletCoordinates,
@@ -92,37 +96,35 @@ class esvo_Mapping
     size_t radius = 0);
 
   void createDenoisingMask(
-    std::vector<dvs_msgs::Event *>& vAllEventsPtr,
+    std::vector<dvs_msgs::msg::Event *>& vAllEventsPtr,
     cv::Mat& mask,
     size_t row, size_t col);// reserve in this file
 
   void extractDenoisedEvents(
-    std::vector<dvs_msgs::Event *> &vCloseEventsPtr,
-    std::vector<dvs_msgs::Event *> &vEdgeEventsPtr,
+    std::vector<dvs_msgs::msg::Event *> &vCloseEventsPtr,
+    std::vector<dvs_msgs::msg::Event *> &vEdgeEventsPtr,
     cv::Mat& mask,
     size_t maxNum = 5000);
 
   /************************ member variables ************************/
   private:
-  ros::NodeHandle nh_, pnh_;
-
   // Subscribers
-  ros::Subscriber events_left_sub_, events_right_sub_;
-  ros::Subscriber stampedPose_sub_;
-  message_filters::Subscriber<sensor_msgs::Image> TS_left_sub_, TS_right_sub_;
+  rclcpp::Subscription<dvs_msgs::msg::EventArray>::SharedPtr events_left_sub_, events_right_sub_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr stampedPose_sub_;
+  message_filters::Subscriber<sensor_msgs::msg::Image> TS_left_sub_, TS_right_sub_;
 
   // Publishers
-  ros::Publisher pc_pub_, gpc_pub_;
-  image_transport::ImageTransport it_;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pc_pub_, gpc_pub_;
+  image_transport::Publisher it_pub_;
   double t_last_pub_pc_;
 
   // Time-Surface sync policy
-  typedef message_filters::sync_policies::ExactTime<sensor_msgs::Image, sensor_msgs::Image> ExactSyncPolicy;
-  message_filters::Synchronizer<ExactSyncPolicy> TS_sync_;
+  typedef message_filters::sync_policies::ExactTime<sensor_msgs::msg::Image, sensor_msgs::msg::Image> ExactSyncPolicy;
+  std::shared_ptr<message_filters::Synchronizer<ExactSyncPolicy>> TS_sync_;
 
-  // dynamic configuration (modify parameters online)
-  boost::shared_ptr<dynamic_reconfigure::Server<DVS_MappingStereoConfig> > server_;
-  dynamic_reconfigure::Server<DVS_MappingStereoConfig>::CallbackType dynamic_reconfigure_callback_;
+  // dynamic configuration not available in ROS2
+  // boost::shared_ptr<dynamic_reconfigure::Server<DVS_MappingStereoConfig> > server_;
+  // dynamic_reconfigure::Server<DVS_MappingStereoConfig>::CallbackType dynamic_reconfigure_callback_;
 
   // offline data
   std::string dvs_frame_id_;
@@ -135,9 +137,10 @@ class esvo_Mapping
   TimeSurfaceHistory TS_history_;
   StampedTimeSurfaceObs TS_obs_;
   StampTransformationMap st_map_;
-  std::shared_ptr<tf::Transformer> tf_;
+  std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+  std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
   size_t TS_id_;
-  ros::Time tf_lastest_common_time_;
+  rclcpp::Time tf_lastest_common_time_;
 
   // system
   std::string ESVO_System_Status_;
@@ -149,11 +152,11 @@ class esvo_Mapping
   EventBM ebm_;
 
   // data transfer
-  std::vector<dvs_msgs::Event *> vALLEventsPtr_left_;// for BM
-  std::vector<dvs_msgs::Event *> vCloseEventsPtr_left_;// for BM
-  std::vector<dvs_msgs::Event *> vDenoisedEventsPtr_left_;// for BM
+  std::vector<dvs_msgs::msg::Event *> vALLEventsPtr_left_;// for BM
+  std::vector<dvs_msgs::msg::Event *> vCloseEventsPtr_left_;// for BM
+  std::vector<dvs_msgs::msg::Event *> vDenoisedEventsPtr_left_;// for BM
   size_t totalNumCount_;// count the number of events involved
-  std::vector<dvs_msgs::Event *> vEventsPtr_left_SGM_;// for SGM
+  std::vector<dvs_msgs::msg::Event *> vEventsPtr_left_SGM_;// for SGM
 
   // result
   PointCloud::Ptr pc_, pc_near_, pc_global_;
