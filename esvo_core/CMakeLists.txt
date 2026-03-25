@@ -198,6 +198,17 @@ install(DIRECTORY calib/
   DESTINATION share/${PROJECT_NAME}/calib
 )
 
+# Install rviz and perspective files
+install(FILES
+  esvo_system.rviz
+  esvo_mvstereo.rviz
+  esvo_system_DSEC.rviz
+  esvo_system.perspective
+  esvo_mvstereo.perspective
+  esvo_system_DSEC.perspective
+  DESTINATION share/${PROJECT_NAME}
+)
+
 # Install Python scripts
 install(PROGRAMS
   scripts/sync_timer_node.py
