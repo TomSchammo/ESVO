@@ -1,14 +1,12 @@
 #ifndef esvo_time_surface_H_
 #define esvo_time_surface_H_
 
-#include <ros/ros.h>
-#include <std_msgs/Time.h>
-#include <cv_bridge/cv_bridge.h>
-#include <sensor_msgs/Image.h>
-#include <sensor_msgs/CameraInfo.h>
-#include <sensor_msgs/image_encodings.h>
-#include <dynamic_reconfigure/server.h>
-#include <image_transport/image_transport.h>
+#include <rclcpp/rclcpp.hpp>
+#include <builtin_interfaces/msg/time.hpp>
+#include <cv_bridge/cv_bridge.hpp>
+#include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/camera_info.hpp>
+#include <image_transport/image_transport.hpp>
 
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -52,7 +50,7 @@ public:
   bool getMostRecentEventBeforeT(
     const size_t x,
     const size_t y,
-    const ros::Time& t,
+    const rclcpp::Time& t,
     dvs_msgs::Event* ev)
   {
     if(!insideImage(x, y))
@@ -95,7 +93,7 @@ public:
   std::vector<EventQueue> eqMat_;
 };
 
-class TimeSurface
+class TimeSurface : public rclcpp::Node
 {
   struct Job
   {
@@ -105,26 +103,25 @@ class TimeSurface
     size_t start_col_, end_col_;
     size_t start_row_, end_row_;
     size_t i_thread_;
-    ros::Time external_sync_time_;
+    rclcpp::Time external_sync_time_;
     double decay_sec_;
   };
 
 public:
-  TimeSurface(ros::NodeHandle & nh, ros::NodeHandle nh_private);
+  TimeSurface();
   virtual ~TimeSurface();
 
 private:
-  ros::NodeHandle nh_;
   // core
   void init(int width, int height);
-  void createTimeSurfaceAtTime(const ros::Time& external_sync_time);// single thread version (This is enough for DAVIS240C and DAVIS346)
-  void createTimeSurfaceAtTime_hyperthread(const ros::Time& external_sync_time); // hyper thread version (This is for higher resolution)
+  void createTimeSurfaceAtTime(const rclcpp::Time& external_sync_time);// single thread version (This is enough for DAVIS240C and DAVIS346)
+  void createTimeSurfaceAtTime_hyperthread(const rclcpp::Time& external_sync_time); // hyper thread version (This is for higher resolution)
   void thread(Job& job);
 
   // callbacks
-  void syncCallback(const std_msgs::TimeConstPtr& msg);
+  void syncCallback(const builtin_interfaces::msg::Time::SharedPtr msg);
   void eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg);
-  void cameraInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& msg);
+  void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg);
 
   // utils
   void clearEventQueue();
@@ -137,16 +134,16 @@ private:
   Eigen::Matrix2Xd precomputed_rectified_points_;
 
   // sub & pub
-  ros::Subscriber event_sub_;
-  ros::Subscriber camera_info_sub_;
-  ros::Subscriber sync_topic_;
+  rclcpp::Subscription<dvs_msgs::EventArray>::SharedPtr event_sub_;
+  rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub_;
+  rclcpp::Subscription<builtin_interfaces::msg::Time>::SharedPtr sync_topic_;
   image_transport::Publisher time_surface_pub_;
 
   // online parameters
   bool bCamInfoAvailable_;
-  bool bUse_Sim_Time_;  
+  bool bUse_Sim_Time_;
   cv::Size sensor_size_;
-  ros::Time sync_time_;
+  rclcpp::Time sync_time_;
   bool bSensorInitialized_;
 
   // offline parameters

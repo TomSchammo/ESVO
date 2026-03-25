@@ -1,34 +1,44 @@
 #include <esvo_time_surface/TimeSurface.h>
 #include <esvo_time_surface/TicToc.h>
 #include <opencv2/calib3d/calib3d.hpp>
-#include <std_msgs/Float32.h>
+#include <std_msgs/msg/float32.hpp>
 #include <glog/logging.h>
 #include <thread>
+#include <functional>
 
 //#define ESVO_TS_LOG
 
-namespace esvo_time_surface 
+namespace esvo_time_surface
 {
-TimeSurface::TimeSurface(ros::NodeHandle & nh, ros::NodeHandle nh_private)
-  : nh_(nh)
+TimeSurface::TimeSurface()
+  : Node("esvo_time_surface"), sync_time_(0, 0, RCL_ROS_TIME)
 {
-  // setup subscribers and publishers
-  event_sub_ = nh_.subscribe("events", 0, &TimeSurface::eventsCallback, this);
-  camera_info_sub_ = nh_.subscribe("camera_info", 1, &TimeSurface::cameraInfoCallback, this);
-  sync_topic_ = nh_.subscribe("sync", 1, &TimeSurface::syncCallback, this);
-  image_transport::ImageTransport it_(nh_);
-  time_surface_pub_ = it_.advertise("time_surface", 1);
-
   // parameters
-  nh_private.param<bool>("use_sim_time", bUse_Sim_Time_, true);
-  nh_private.param<bool>("ignore_polarity", ignore_polarity_, true);
-  nh_private.param<double>("decay_ms", decay_ms_, 30);
+  this->declare_parameter<bool>("use_sim_time", true);
+  this->declare_parameter<bool>("ignore_polarity", true);
+  this->declare_parameter<double>("decay_ms", 30.0);
+  this->declare_parameter<int>("time_surface_mode", 0);
+  this->declare_parameter<int>("median_blur_kernel_size", 1);
+  this->declare_parameter<int>("max_event_queue_len", 20);
+
+  this->get_parameter("use_sim_time", bUse_Sim_Time_);
+  this->get_parameter("ignore_polarity", ignore_polarity_);
+  this->get_parameter("decay_ms", decay_ms_);
   int TS_mode;
-  nh_private.param<int>("time_surface_mode", TS_mode, 0);
+  this->get_parameter("time_surface_mode", TS_mode);
   time_surface_mode_ = (TimeSurfaceMode)TS_mode;
-  nh_private.param<int>("median_blur_kernel_size", median_blur_kernel_size_, 1);
-  nh_private.param<int>("max_event_queue_len", max_event_queue_length_, 20);
-  //
+  this->get_parameter("median_blur_kernel_size", median_blur_kernel_size_);
+  this->get_parameter("max_event_queue_len", max_event_queue_length_);
+
+  // setup subscribers and publishers
+  event_sub_ = this->create_subscription<dvs_msgs::EventArray>(
+    "events", 0, std::bind(&TimeSurface::eventsCallback, this, std::placeholders::_1));
+  camera_info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
+    "camera_info", 1, std::bind(&TimeSurface::cameraInfoCallback, this, std::placeholders::_1));
+  sync_topic_ = this->create_subscription<builtin_interfaces::msg::Time>(
+    "sync", 1, std::bind(&TimeSurface::syncCallback, this, std::placeholders::_1));
+  time_surface_pub_ = image_transport::create_publisher(this, "time_surface");
+
   bCamInfoAvailable_ = false;
   bSensorInitialized_ = false;
   if(pEventQueueMat_)
@@ -38,7 +48,6 @@ TimeSurface::TimeSurface(ros::NodeHandle & nh, ros::NodeHandle nh_private)
 
 TimeSurface::~TimeSurface()
 {
-  time_surface_pub_.shutdown();
 }
 
 void TimeSurface::init(int width, int height)
@@ -46,10 +55,10 @@ void TimeSurface::init(int width, int height)
   sensor_size_ = cv::Size(width, height);
   bSensorInitialized_ = true;
   pEventQueueMat_.reset(new EventQueueMat(width, height, max_event_queue_length_));
-  ROS_INFO("Sensor size: (%d x %d)", sensor_size_.width, sensor_size_.height);
+  RCLCPP_INFO(this->get_logger(), "Sensor size: (%d x %d)", sensor_size_.width, sensor_size_.height);
 }
 
-void TimeSurface::createTimeSurfaceAtTime(const ros::Time& external_sync_time)
+void TimeSurface::createTimeSurfaceAtTime(const rclcpp::Time& external_sync_time)
 {
   std::lock_guard<std::mutex> lock(data_mutex_);
 
@@ -146,12 +155,12 @@ void TimeSurface::createTimeSurfaceAtTime(const ros::Time& external_sync_time)
     cv_bridge::CvImage cv_image2;
     cv_image2.encoding = cv_image.encoding;
     cv_image2.header.stamp = external_sync_time;
-    cv::remap(cv_image.image, cv_image2.image, undistort_map1_, undistort_map2_, CV_INTER_LINEAR);
+    cv::remap(cv_image.image, cv_image2.image, undistort_map1_, undistort_map2_, cv::INTER_LINEAR);
     time_surface_pub_.publish(cv_image2.toImageMsg());
   }
 }
 
-void TimeSurface::createTimeSurfaceAtTime_hyperthread(const ros::Time& external_sync_time)
+void TimeSurface::createTimeSurfaceAtTime_hyperthread(const rclcpp::Time& external_sync_time)
 {
   std::lock_guard<std::mutex> lock(data_mutex_);
 
@@ -219,7 +228,7 @@ void TimeSurface::createTimeSurfaceAtTime_hyperthread(const ros::Time& external_
     cv_bridge::CvImage cv_image2;
     cv_image2.encoding = cv_image.encoding;
     cv_image2.header.stamp = external_sync_time;
-    cv::remap(cv_image.image, cv_image2.image, undistort_map1_, undistort_map2_, CV_INTER_LINEAR);
+    cv::remap(cv_image.image, cv_image2.image, undistort_map1_, undistort_map2_, cv::INTER_LINEAR);
     time_surface_pub_.publish(cv_image2.toImageMsg());
   }
 }
@@ -290,12 +299,12 @@ void TimeSurface::thread(Job &job)
     }
 }
 
-void TimeSurface::syncCallback(const std_msgs::TimeConstPtr& msg)
+void TimeSurface::syncCallback(const builtin_interfaces::msg::Time::SharedPtr msg)
 {
   if(bUse_Sim_Time_)
-    sync_time_ = ros::Time::now();
+    sync_time_ = this->now();
   else
-    sync_time_ = msg->data;
+    sync_time_ = rclcpp::Time(*msg);
 
 #ifdef ESVO_TS_LOG
     TicToc tt;
@@ -310,7 +319,7 @@ void TimeSurface::syncCallback(const std_msgs::TimeConstPtr& msg)
 #endif
 }
 
-void TimeSurface::cameraInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& msg)
+void TimeSurface::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg)
 {
   if(bCamInfoAvailable_)
     return;
@@ -342,7 +351,7 @@ void TimeSurface::cameraInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& ms
                                          rectification_matrix_, projection_matrix_,
                                          sensor_size, CV_32FC1, undistort_map1_, undistort_map2_);
     bCamInfoAvailable_ = true;
-    ROS_INFO("Camera information is loaded (Distortion model %s).", distortion_model_.c_str());
+    RCLCPP_INFO(this->get_logger(), "Camera information is loaded (Distortion model %s).", distortion_model_.c_str());
   }
   else if(distortion_model_ == "plumb_bob")
   {
@@ -350,11 +359,11 @@ void TimeSurface::cameraInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& ms
                                 rectification_matrix_, projection_matrix_,
                                 sensor_size, CV_32FC1, undistort_map1_, undistort_map2_);
     bCamInfoAvailable_ = true;
-    ROS_INFO("Camera information is loaded (Distortion model %s).", distortion_model_.c_str());
+    RCLCPP_INFO(this->get_logger(), "Camera information is loaded (Distortion model %s).", distortion_model_.c_str());
   }
   else
   {
-    ROS_ERROR_ONCE("Distortion model %s is not supported.", distortion_model_.c_str());
+    RCLCPP_ERROR_ONCE(this->get_logger(), "Distortion model %s is not supported.", distortion_model_.c_str());
     bCamInfoAvailable_ = false;
     return;
   }
@@ -377,14 +386,14 @@ void TimeSurface::cameraInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& ms
   {
     cv::undistortPoints(RawCoordinates, RectCoordinates, camera_matrix_, dist_coeffs_,
                         rectification_matrix_, projection_matrix_);
-    ROS_INFO("Undistorted-Rectified Look-Up Table with Distortion model: %s", distortion_model_.c_str());
+    RCLCPP_INFO(this->get_logger(), "Undistorted-Rectified Look-Up Table with Distortion model: %s", distortion_model_.c_str());
   }
   else if (distortion_model_ == "equidistant")
   {
     cv::fisheye::undistortPoints(
       RawCoordinates, RectCoordinates, camera_matrix_, dist_coeffs_,
       rectification_matrix_, projection_matrix_);
-    ROS_INFO("Undistorted-Rectified Look-Up Table with Distortion model: %s", distortion_model_.c_str());
+    RCLCPP_INFO(this->get_logger(), "Undistorted-Rectified Look-Up Table with Distortion model: %s", distortion_model_.c_str());
   }
   else
   {
@@ -397,7 +406,7 @@ void TimeSurface::cameraInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& ms
     precomputed_rectified_points_.col(i) = Eigen::Matrix<double, 2, 1>(
       RectCoordinates(i).x, RectCoordinates(i).y);
   }
-  ROS_INFO("Undistorted-Rectified Look-Up Table has been computed.");
+  RCLCPP_INFO(this->get_logger(), "Undistorted-Rectified Look-Up Table has been computed.");
 }
 
 void TimeSurface::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)

@@ -2,14 +2,12 @@
 
 int main(int argc, char* argv[])
 {
-  ros::init(argc, argv, "esvo_time_surface");
+  rclcpp::init(argc, argv);
 
-  ros::NodeHandle nh;
-  ros::NodeHandle nh_private("~");
+  auto node = std::make_shared<esvo_time_surface::TimeSurface>();
 
-  esvo_time_surface::TimeSurface ts(nh, nh_private);
+  rclcpp::spin(node);
 
-  ros::spin();
-
+  rclcpp::shutdown();
   return 0;
 }
