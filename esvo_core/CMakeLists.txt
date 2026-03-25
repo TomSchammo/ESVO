@@ -186,4 +186,16 @@ install(DIRECTORY include/
   DESTINATION include
 )
 
+install(DIRECTORY launch/
+  DESTINATION share/${PROJECT_NAME}/launch
+)
+
+install(DIRECTORY cfg/
+  DESTINATION share/${PROJECT_NAME}/cfg
+)
+
+install(DIRECTORY calib/
+  DESTINATION share/${PROJECT_NAME}/calib
+)
+
 ament_package()
