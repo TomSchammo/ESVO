@@ -179,14 +179,14 @@ void esvo_Mapping::MappingLoop(
   std::promise<void> prom_mapping,
   std::future<void> future_reset)
 {
-  rclcpp::Rate r(mapping_rate_hz_);
+  auto r = std::make_unique<rclcpp::Rate>(mapping_rate_hz_);
 
   while (rclcpp::ok())
   {
     // reset mapping rate
     if(changed_frame_rate_)
     {
-      r = rclcpp::Rate(mapping_rate_hz_);
+      r = std::make_unique<rclcpp::Rate>(mapping_rate_hz_);
       changed_frame_rate_ = false;
     }
     // check system status
@@ -219,7 +219,7 @@ void esvo_Mapping::MappingLoop(
       // To check if the most current TS observation has been loaded by dataTransferring()
       if(TS_obs_.second.isEmpty())
       {
-        r.sleep();
+        r->sleep();
         continue;
       }
       // Do initialization (State Machine)
@@ -252,7 +252,7 @@ void esvo_Mapping::MappingLoop(
         return;
       }
     }
-    r.sleep();
+    r->sleep();
   }
 }
 
@@ -650,7 +650,18 @@ bool esvo_Mapping::getPoseAt(
     }
     geometry_msgs::msg::TransformStamped transform_stamped =
       tf_buffer_->lookupTransform(world_frame_id_, source_frame, t);
-    tf2::transformTFToKindr(transform_stamped, &Tr);
+    // Convert geometry_msgs::msg::TransformStamped to tf2::Transform
+    tf2::Transform tf2_transform;
+    tf2_transform.setOrigin(tf2::Vector3(
+        transform_stamped.transform.translation.x,
+        transform_stamped.transform.translation.y,
+        transform_stamped.transform.translation.z));
+    tf2_transform.setRotation(tf2::Quaternion(
+        transform_stamped.transform.rotation.x,
+        transform_stamped.transform.rotation.y,
+        transform_stamped.transform.rotation.z,
+        transform_stamped.transform.rotation.w));
+    tf::transformTFToKindr(tf2_transform, &Tr);
     return true;
   }
   catch (tf2::TransformException &ex)
@@ -719,11 +730,11 @@ void esvo_Mapping::timeSurfaceCallback(
   {
     static constexpr double max_time_diff_before_reset_s = 0.5;
     const rclcpp::Time stamp_last_image = TS_history_.rbegin()->first;
-    const double dt = time_surface_left->header.stamp.seconds() - stamp_last_image.seconds();
+    const double dt = rclcpp::Time(time_surface_left->header.stamp).seconds() - stamp_last_image.seconds();
     if(dt < 0 || std::fabs(dt) >= max_time_diff_before_reset_s)
     {
       RCLCPP_INFO(this->get_logger(),"Inconsistent frame timestamp detected <timeSurfaceCallback> (new: %f, old %f), resetting.",
-               time_surface_left->header.stamp.seconds(), stamp_last_image.seconds());
+               rclcpp::Time(time_surface_left->header.stamp).seconds(), stamp_last_image.seconds());
       reset();
     }
   }
@@ -799,6 +810,7 @@ void esvo_Mapping::reset()
   MappingThread.detach();
 }
 
+#if 0  // dynamic_reconfigure not available in ROS2, will need parameter callbacks
 void esvo_Mapping::onlineParameterChangeCallback(DVS_MappingStereoConfig &config, uint32_t level)
 {
   bool online_parameters_changed = false;
@@ -860,6 +872,7 @@ void esvo_Mapping::onlineParameterChangeCallback(DVS_MappingStereoConfig &config
     reset();
   }
 }
+#endif
 
 void esvo_Mapping::publishMappingResults(
   DepthMap::Ptr depthMapPtr,

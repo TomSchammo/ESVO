@@ -388,7 +388,18 @@ esvo_Tracking::getPoseAt(
     }
     geometry_msgs::msg::TransformStamped transform_stamped =
       tf_buffer_->lookupTransform(world_frame_id_, source_frame, t);
-    tf2::transformTFToKindr(transform_stamped, &Tr);
+    // Convert geometry_msgs::msg::TransformStamped to tf2::Transform
+    tf2::Transform tf2_transform;
+    tf2_transform.setOrigin(tf2::Vector3(
+        transform_stamped.transform.translation.x,
+        transform_stamped.transform.translation.y,
+        transform_stamped.transform.translation.z));
+    tf2_transform.setRotation(tf2::Quaternion(
+        transform_stamped.transform.rotation.x,
+        transform_stamped.transform.rotation.y,
+        transform_stamped.transform.rotation.z,
+        transform_stamped.transform.rotation.w));
+    tf::transformTFToKindr(tf2_transform, &Tr);
     return true;
   }
   catch (tf2::TransformException &ex)

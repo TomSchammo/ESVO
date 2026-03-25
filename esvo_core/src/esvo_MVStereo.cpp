@@ -177,7 +177,7 @@ void esvo_MVStereo::MappingLoop(
   std::promise<void> prom_mapping,
   std::future<void> future_reset)
 {
-  rclcpp::Rate r(mapping_rate_hz_);
+  auto r = std::make_unique<rclcpp::Rate>(mapping_rate_hz_);
 
   while (rclcpp::ok())
   {
@@ -186,7 +186,7 @@ void esvo_MVStereo::MappingLoop(
 #ifdef ESVO_CORE_MVSTEREO_LOG
       RCLCPP_INFO(this->get_logger(),"Changing mapping framerate to %d Hz", mapping_rate_hz_);
 #endif
-      r = rclcpp::Rate(mapping_rate_hz_);
+      r = std::make_unique<rclcpp::Rate>(mapping_rate_hz_);
       changed_frame_rate_ = false;
     }
     //
@@ -215,7 +215,7 @@ void esvo_MVStereo::MappingLoop(
       // To check if the most current TS observation has been loaded by dataTransferring()
       if(TS_obs_.second.isEmpty())
       {
-        r.sleep();
+        r->sleep();
         continue;
       }
       publishKFPose(TS_obs_.first, TS_obs_.second.tr_);
@@ -229,7 +229,7 @@ void esvo_MVStereo::MappingLoop(
         return;
       }
     }
-    r.sleep();
+    r->sleep();
   }
 }
 
@@ -717,7 +717,18 @@ bool esvo_MVStereo::getPoseAt(
     }
     geometry_msgs::msg::TransformStamped transform_stamped =
       tf_buffer_->lookupTransform(world_frame_id_, source_frame, t);
-    tf2::transformTFToKindr(transform_stamped, &Tr);
+    // Convert geometry_msgs::msg::TransformStamped to tf2::Transform
+    tf2::Transform tf2_transform;
+    tf2_transform.setOrigin(tf2::Vector3(
+        transform_stamped.transform.translation.x,
+        transform_stamped.transform.translation.y,
+        transform_stamped.transform.translation.z));
+    tf2_transform.setRotation(tf2::Quaternion(
+        transform_stamped.transform.rotation.x,
+        transform_stamped.transform.rotation.y,
+        transform_stamped.transform.rotation.z,
+        transform_stamped.transform.rotation.w));
+    tf::transformTFToKindr(tf2_transform, &Tr);
     // HARDCODED: The GT pose of rpg dataset is the pose of stereo rig, namely that of the marker.
     if(std::strcmp(source_frame.c_str(), "marker") == 0)
     {
@@ -799,11 +810,11 @@ void esvo_MVStereo::timeSurfaceCallback(
   {
     static constexpr double max_time_diff_before_reset_s = 0.5;
     const rclcpp::Time stamp_last_image = TS_history_.rbegin()->first;
-    const double dt = time_surface_left->header.stamp.seconds() - stamp_last_image.seconds();
+    const double dt = rclcpp::Time(time_surface_left->header.stamp).seconds() - stamp_last_image.seconds();
     if(dt < 0 || std::fabs(dt) >= max_time_diff_before_reset_s)
     {
       RCLCPP_INFO(this->get_logger(),"Inconsistent frame timestamp detected <timeSurfaceCallback> (new: %f, old %f), resetting.",
-               time_surface_left->header.stamp.seconds(), stamp_last_image.seconds());
+               rclcpp::Time(time_surface_left->header.stamp).seconds(), stamp_last_image.seconds());
       reset();
     }
   }
@@ -1107,7 +1118,7 @@ void esvo_MVStereo::eventSlicingForEM(std::vector<EventSlice>& eventSlices)
   {
     EventSlice es(EM_Slice_Thickness_);
     es.it_begin_ = it_tmp;
-    rclcpp::Time t_end((*it_tmp)->ts.seconds() + es.SLICE_THICKNESS_);
+    rclcpp::Time t_end = rclcpp::Time((*it_tmp)->ts) + rclcpp::Duration::from_seconds(es.SLICE_THICKNESS_);
     es.it_end_ = tools::EventVecPtr_lower_bound(vEventsPtr_left_, t_end);
     if (es.it_end_ == vEventsPtr_left_.end())
       es.it_end_--;
