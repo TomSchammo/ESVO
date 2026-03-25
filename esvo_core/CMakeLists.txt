@@ -198,4 +198,10 @@ install(DIRECTORY calib/
   DESTINATION share/${PROJECT_NAME}/calib
 )
 
+# Install Python scripts
+install(PROGRAMS
+  scripts/sync_timer_node.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 ament_package()
