@@ -1,0 +1,3 @@
+[submodule "dvs_msgs"]
+	path = dvs_msgs
+	url = https://github.com/ros-event-camera/dvs_msgs

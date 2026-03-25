@@ -19,6 +19,7 @@ set(ROS2_DEPENDENCIES
   "cv_bridge"
   "image_transport"
   "builtin_interfaces"
+  "dvs_msgs"
   # "rclcpp_components"
   # "event_camera_msgs"
   # "std_srvs"

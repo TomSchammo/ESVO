@@ -31,7 +31,7 @@ TimeSurface::TimeSurface()
   this->get_parameter("max_event_queue_len", max_event_queue_length_);
 
   // setup subscribers and publishers
-  event_sub_ = this->create_subscription<dvs_msgs::EventArray>(
+  event_sub_ = this->create_subscription<dvs_msgs::msg::EventArray>(
     "events", 0, std::bind(&TimeSurface::eventsCallback, this, std::placeholders::_1));
   camera_info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
     "camera_info", 1, std::bind(&TimeSurface::cameraInfoCallback, this, std::placeholders::_1));
@@ -75,7 +75,7 @@ void TimeSurface::createTimeSurfaceAtTime(const rclcpp::Time& external_sync_time
   {
     for(int x=0; x<sensor_size_.width; ++x)
     {
-      dvs_msgs::Event most_recent_event_at_coordXY_before_T;
+      dvs_msgs::msg::Event most_recent_event_at_coordXY_before_T;
       if(pEventQueueMat_->getMostRecentEventBeforeT(x, y, external_sync_time, &most_recent_event_at_coordXY_before_T))
       {
         const ros::Time& most_recent_stamp_at_coordXY = most_recent_event_at_coordXY_before_T.ts;
@@ -246,7 +246,7 @@ void TimeSurface::thread(Job &job)
   for(size_t y = start_row; y <= end_row; y++)
     for(size_t x = start_col; x <= end_col; x++)
     {
-      dvs_msgs::Event most_recent_event_at_coordXY_before_T;
+      dvs_msgs::msg::Event most_recent_event_at_coordXY_before_T;
       if(pEventQueueMat_->getMostRecentEventBeforeT(x, y, job.external_sync_time_, &most_recent_event_at_coordXY_before_T))
       {
         const ros::Time& most_recent_stamp_at_coordXY = most_recent_event_at_coordXY_before_T.ts;
@@ -409,14 +409,14 @@ void TimeSurface::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedP
   RCLCPP_INFO(this->get_logger(), "Undistorted-Rectified Look-Up Table has been computed.");
 }
 
-void TimeSurface::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
+void TimeSurface::eventsCallback(const dvs_msgs::msg::EventArray::SharedPtr msg)
 {
   std::lock_guard<std::mutex> lock(data_mutex_);
 
   if(!bSensorInitialized_)
     init(msg->width, msg->height);
 
-  for(const dvs_msgs::Event& e : msg->events)
+  for(const dvs_msgs::msg::Event& e : msg->events)
   {
     events_.push_back(e);
     int i = events_.size() - 2;
@@ -427,7 +427,7 @@ void TimeSurface::eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg)
     }
     events_[i+1] = e;
 
-    const dvs_msgs::Event& last_event = events_.back();
+    const dvs_msgs::msg::Event& last_event = events_.back();
     pEventQueueMat_->insertEvent(last_event);
   }
   clearEventQueue();

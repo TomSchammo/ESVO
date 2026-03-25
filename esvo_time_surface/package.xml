@@ -19,7 +19,7 @@
   <depend>cv_bridge</depend>
   <depend>image_transport</depend>
   <depend>builtin_interfaces</depend>
-  <!-- <depend>dvs_msgs</depend> -->
+  <depend>dvs_msgs</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

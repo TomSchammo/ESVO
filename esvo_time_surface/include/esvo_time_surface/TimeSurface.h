@@ -11,8 +11,8 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-#include <dvs_msgs/Event.h>
-#include <dvs_msgs/EventArray.h>
+#include <dvs_msgs/msg/event.hpp>
+#include <dvs_msgs/msg/event_array.hpp>
 
 #include <deque>
 #include <mutex>
@@ -21,7 +21,7 @@
 namespace esvo_time_surface
 {
 #define NUM_THREAD_TS 1
-using EventQueue = std::deque<dvs_msgs::Event>;
+using EventQueue = std::deque<dvs_msgs::msg::Event>;
 
 class EventQueueMat 
 {
@@ -34,7 +34,7 @@ public:
     eqMat_ = std::vector<EventQueue>(width_ * height_, EventQueue());
   }
 
-  void insertEvent(const dvs_msgs::Event& e)
+  void insertEvent(const dvs_msgs::msg::Event& e)
   {
     if(!insideImage(e.x, e.y))
       return;
@@ -51,7 +51,7 @@ public:
     const size_t x,
     const size_t y,
     const rclcpp::Time& t,
-    dvs_msgs::Event* ev)
+    dvs_msgs::msg::Event* ev)
   {
     if(!insideImage(x, y))
       return false;
@@ -62,8 +62,8 @@ public:
 
     for(auto it = eq.rbegin(); it != eq.rend(); ++it)
     {
-      const dvs_msgs::Event& e = *it;
-      if(e.ts < t)
+      const dvs_msgs::msg::Event& e = *it;
+      if(rclcpp::Time(e.ts) < t)
       {
         *ev = *it;
         return true;
@@ -120,7 +120,7 @@ private:
 
   // callbacks
   void syncCallback(const builtin_interfaces::msg::Time::SharedPtr msg);
-  void eventsCallback(const dvs_msgs::EventArray::ConstPtr& msg);
+  void eventsCallback(const dvs_msgs::msg::EventArray::SharedPtr msg);
   void cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedPtr msg);
 
   // utils
@@ -134,7 +134,7 @@ private:
   Eigen::Matrix2Xd precomputed_rectified_points_;
 
   // sub & pub
-  rclcpp::Subscription<dvs_msgs::EventArray>::SharedPtr event_sub_;
+  rclcpp::Subscription<dvs_msgs::msg::EventArray>::SharedPtr event_sub_;
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub_;
   rclcpp::Subscription<builtin_interfaces::msg::Time>::SharedPtr sync_topic_;
   image_transport::Publisher time_surface_pub_;
