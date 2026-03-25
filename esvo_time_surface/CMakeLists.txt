@@ -31,6 +31,7 @@ endforeach()
 
 
 find_package(OpenCV REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 ament_auto_find_build_dependencies(REQUIRED ${ROS2_DEPENDENCIES})
 
@@ -44,6 +45,7 @@ add_executable(esvo_time_surface
 target_include_directories(esvo_time_surface PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
+  ${EIGEN3_INCLUDE_DIR}
 )
 
 # link the executable to the necessary libs
