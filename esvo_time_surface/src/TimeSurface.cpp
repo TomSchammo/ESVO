@@ -78,10 +78,10 @@ void TimeSurface::createTimeSurfaceAtTime(const rclcpp::Time& external_sync_time
       dvs_msgs::msg::Event most_recent_event_at_coordXY_before_T;
       if(pEventQueueMat_->getMostRecentEventBeforeT(x, y, external_sync_time, &most_recent_event_at_coordXY_before_T))
       {
-        const ros::Time& most_recent_stamp_at_coordXY = most_recent_event_at_coordXY_before_T.ts;
-        if(most_recent_stamp_at_coordXY.toSec() > 0)
+        const rclcpp::Time most_recent_stamp_at_coordXY(most_recent_event_at_coordXY_before_T.ts);
+        if(most_recent_stamp_at_coordXY.seconds() > 0)
         {
-          const double dt = (external_sync_time - most_recent_stamp_at_coordXY).toSec();
+          const double dt = (external_sync_time - most_recent_stamp_at_coordXY).seconds();
           double polarity = (most_recent_event_at_coordXY_before_T.polarity) ? 1.0 : -1.0;
           double expVal = std::exp(-dt / decay_sec);
           if(!ignore_polarity_)
@@ -249,10 +249,10 @@ void TimeSurface::thread(Job &job)
       dvs_msgs::msg::Event most_recent_event_at_coordXY_before_T;
       if(pEventQueueMat_->getMostRecentEventBeforeT(x, y, job.external_sync_time_, &most_recent_event_at_coordXY_before_T))
       {
-        const ros::Time& most_recent_stamp_at_coordXY = most_recent_event_at_coordXY_before_T.ts;
-        if(most_recent_stamp_at_coordXY.toSec() > 0)
+        const rclcpp::Time most_recent_stamp_at_coordXY(most_recent_event_at_coordXY_before_T.ts);
+        if(most_recent_stamp_at_coordXY.seconds() > 0)
         {
-          const double dt = (job.external_sync_time_ - most_recent_stamp_at_coordXY).toSec();
+          const double dt = (job.external_sync_time_ - most_recent_stamp_at_coordXY).seconds();
           double polarity = (most_recent_event_at_coordXY_before_T.polarity) ? 1.0 : -1.0;
           double expVal = std::exp(-dt / job.decay_sec_);
           if(!ignore_polarity_)
@@ -328,22 +328,22 @@ void TimeSurface::cameraInfoCallback(const sensor_msgs::msg::CameraInfo::SharedP
   camera_matrix_ = cv::Mat(3, 3, CV_64F);
   for (int i = 0; i < 3; i++)
     for (int j = 0; j < 3; j++)
-      camera_matrix_.at<double>(cv::Point(i, j)) = msg->K[i+j*3];
+      camera_matrix_.at<double>(cv::Point(i, j)) = msg->k[i+j*3];
 
   distortion_model_ = msg->distortion_model;
-  dist_coeffs_ = cv::Mat(msg->D.size(), 1, CV_64F);
-  for (int i = 0; i < msg->D.size(); i++)
-    dist_coeffs_.at<double>(i) = msg->D[i];
+  dist_coeffs_ = cv::Mat(msg->d.size(), 1, CV_64F);
+  for (size_t i = 0; i < msg->d.size(); i++)
+    dist_coeffs_.at<double>(i) = msg->d[i];
 
   rectification_matrix_ = cv::Mat(3, 3, CV_64F);
   for (int i = 0; i < 3; i++)
     for (int j = 0; j < 3; j++)
-      rectification_matrix_.at<double>(cv::Point(i, j)) = msg->R[i+j*3];
+      rectification_matrix_.at<double>(cv::Point(i, j)) = msg->r[i+j*3];
 
   projection_matrix_ = cv::Mat(3, 4, CV_64F);
   for (int i = 0; i < 4; i++)
     for (int j = 0; j < 3; j++)
-      projection_matrix_.at<double>(cv::Point(i, j)) = msg->P[i+j*4];
+      projection_matrix_.at<double>(cv::Point(i, j)) = msg->p[i+j*4];
 
   if(distortion_model_ == "equidistant")
   {
@@ -420,7 +420,7 @@ void TimeSurface::eventsCallback(const dvs_msgs::msg::EventArray::SharedPtr msg)
   {
     events_.push_back(e);
     int i = events_.size() - 2;
-    while(i >= 0 && events_[i].ts > e.ts)
+    while(i >= 0 && rclcpp::Time(events_[i].ts) > rclcpp::Time(e.ts))
     {
       events_[i+1] = events_[i];
       i--;
