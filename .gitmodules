@@ -1,3 +1,6 @@
 [submodule "dvs_msgs"]
 	path = dvs_msgs
 	url = https://github.com/ros-event-camera/dvs_msgs
+[submodule "eigen_checks"]
+	path = eigen_checks
+	url = https://github.com/ethz-asl/eigen_checks.git
