@@ -1,5 +1,5 @@
 Panels:
-  - Class: rviz/Displays
+  - Class: rviz_common/Displays
     Help Height: 78
     Name: Displays
     Property Tree Widget:
@@ -16,22 +16,22 @@ Panels:
         - /Path1
       Splitter Ratio: 0.501366138458252
     Tree Height: 357
-  - Class: rviz/Selection
+  - Class: rviz_common/Selection
     Name: Selection
-  - Class: rviz/Tool Properties
+  - Class: rviz_common/Tool Properties
     Expanded:
       - /2D Pose Estimate1
       - /2D Nav Goal1
       - /Publish Point1
     Name: Tool Properties
     Splitter Ratio: 0.5886790156364441
-  - Class: rviz/Views
+  - Class: rviz_common/Views
     Expanded:
       - /Current View1
       - /ThirdPersonFollower1
     Name: Views
     Splitter Ratio: 0.5
-  - Class: rviz/Time
+  - Class: rviz_common/Time
     Experimental: false
     Name: Time
     SyncMode: 0
@@ -45,7 +45,7 @@ Visualization Manager:
   Displays:
     - Alpha: 0.5
       Cell Size: 1
-      Class: rviz/Grid
+      Class: rviz_default_plugins/Grid
       Color: 160; 160; 164
       Enabled: false
       Line Style:
@@ -61,7 +61,7 @@ Visualization Manager:
       Plane Cell Count: 10
       Reference Frame: <Fixed Frame>
       Value: false
-    - Class: rviz/TF
+    - Class: rviz_default_plugins/TF
       Enabled: true
       Frame Timeout: 999
       Frames:
@@ -78,7 +78,7 @@ Visualization Manager:
     - Alpha: 1
       Axes Length: 0.15000000596046448
       Axes Radius: 0.019999999552965164
-      Class: rviz/Pose
+      Class: rviz_default_plugins/Pose
       Color: 255; 25; 0
       Enabled: false
       Head Length: 0.30000001192092896
@@ -90,7 +90,7 @@ Visualization Manager:
       Topic: /esvo_core/pose_pub
       Unreliable: false
       Value: false
-    - Class: rviz/Axes
+    - Class: rviz_default_plugins/Axes
       Enabled: false
       Length: 1
       Name: Axes
@@ -105,7 +105,7 @@ Visualization Manager:
         Value: true
       Axis: Z
       Channel Name: x
-      Class: rviz/PointCloud2
+      Class: rviz_default_plugins/PointCloud2
       Color: 85; 87; 83
       Color Transformer: FlatColor
       Decay Time: 0
@@ -129,7 +129,7 @@ Visualization Manager:
       Value: true
     - Alpha: 1
       Buffer Length: 1
-      Class: rviz/Path
+      Class: rviz_default_plugins/Path
       Color: 225; 91; 195
       Enabled: true
       Head Diameter: 0.30000001192092896
@@ -158,26 +158,26 @@ Visualization Manager:
     Frame Rate: 30
   Name: root
   Tools:
-    - Class: rviz/Interact
+    - Class: rviz_default_plugins/Interact
       Hide Inactive Objects: true
-    - Class: rviz/MoveCamera
-    - Class: rviz/Select
-    - Class: rviz/FocusCamera
-    - Class: rviz/Measure
-    - Class: rviz/SetInitialPose
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+    - Class: rviz_default_plugins/SetInitialPose
       Theta std deviation: 0.2617993950843811
       Topic: /initialpose
       X std deviation: 0.5
       Y std deviation: 0.5
-    - Class: rviz/SetGoal
+    - Class: rviz_default_plugins/SetGoal
       Topic: /move_base_simple/goal
-    - Class: rviz/PublishPoint
+    - Class: rviz_default_plugins/PublishPoint
       Single click: true
       Topic: /clicked_point
   Value: true
   Views:
     Current:
-      Class: rviz/FrameAligned
+      Class: rviz_default_plugins/FrameAligned
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -195,10 +195,10 @@ Visualization Manager:
         Z: -30.676294326782227
       Roll: 3.141587734222412
       Target Frame: dvs
-      Value: FrameAligned (rviz)
+      Value: FrameAligned (rviz_default_plugins)
       Yaw: -1.5449943542480469
     Saved:
-      - Class: rviz/ThirdPersonFollower
+      - Class: rviz_default_plugins/ThirdPersonFollower
         Distance: 38.74925994873047
         Enable Stereo Rendering:
           Stereo Eye Separation: 0.05999999865889549
@@ -216,9 +216,9 @@ Visualization Manager:
         Near Clip Distance: 0.009999999776482582
         Pitch: -1.0247968435287476
         Target Frame: <Fixed Frame>
-        Value: ThirdPersonFollower (rviz)
+        Value: ThirdPersonFollower (rviz_default_plugins)
         Yaw: 4.613580226898193
-      - Class: rviz/FrameAligned
+      - Class: rviz_default_plugins/FrameAligned
         Enable Stereo Rendering:
           Stereo Eye Separation: 0.05999999865889549
           Stereo Focal Distance: 1
@@ -236,9 +236,9 @@ Visualization Manager:
           Z: -42.410736083984375
         Roll: 3.141587734222412
         Target Frame: dvs
-        Value: FrameAligned (rviz)
+        Value: FrameAligned (rviz_default_plugins)
         Yaw: -1.5599943399429321
-      - Class: rviz/FrameAligned
+      - Class: rviz_default_plugins/FrameAligned
         Enable Stereo Rendering:
           Stereo Eye Separation: 0.05999999865889549
           Stereo Focal Distance: 1
@@ -256,7 +256,7 @@ Visualization Manager:
           Z: -42.24729919433594
         Roll: 3.141587734222412
         Target Frame: dvs
-        Value: FrameAligned (rviz)
+        Value: FrameAligned (rviz_default_plugins)
         Yaw: -1.5449943542480469
 Window Geometry:
   Displays:
