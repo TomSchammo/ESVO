@@ -4,3 +4,9 @@
 [submodule "eigen_checks"]
 	path = eigen_checks
 	url = https://github.com/ethz-asl/eigen_checks.git
+[submodule "minkindr"]
+	path = minkindr
+	url = https://github.com/ethz-asl/minkindr.git
+[submodule "minkindr_ros2"]
+	path = minkindr_ros2
+	url = https://github.com/illusionaryshelter/minkindr_ros2.git
