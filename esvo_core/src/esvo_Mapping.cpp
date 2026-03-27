@@ -123,6 +123,7 @@ esvo_Mapping::esvo_Mapping()
                        BM_step_, BM_ZNCC_Threshold_, BM_bUpDownConfiguration_);
 
   // system status
+  this->declare_parameter("ESVO_SYSTEM_STATUS", std::string("INITIALIZATION"));
   ESVO_System_Status_ = "INITIALIZATION";
 
   // callback functions

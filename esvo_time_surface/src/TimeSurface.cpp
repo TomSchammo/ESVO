@@ -14,7 +14,7 @@ TimeSurface::TimeSurface()
   : Node("esvo_time_surface"), sync_time_(0, 0, RCL_ROS_TIME)
 {
   // parameters
-  this->declare_parameter<bool>("use_sim_time", true);
+  // Note: use_sim_time is automatically declared by ROS2, don't declare it manually
   this->declare_parameter<bool>("ignore_polarity", true);
   this->declare_parameter<double>("decay_ms", 30.0);
   this->declare_parameter<int>("time_surface_mode", 0);

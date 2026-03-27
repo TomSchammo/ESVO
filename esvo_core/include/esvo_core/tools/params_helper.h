@@ -46,7 +46,10 @@ namespace tools
 template<typename T>
 T param(rclcpp::Node* node, const std::string &name, const T &defaultValue)
 {
-  node->declare_parameter(name, defaultValue);
+  // Only declare if not already declared
+  if (!node->has_parameter(name)) {
+    node->declare_parameter(name, defaultValue);
+  }
   T v;
   if (node->get_parameter(name, v))
   {
