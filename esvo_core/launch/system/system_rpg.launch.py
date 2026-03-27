@@ -31,6 +31,22 @@ def generate_launch_description():
     # Time surface parameters
     ts_params_file = os.path.join(esvo_core_share, 'cfg', 'time_surface', 'ts_parameters.yaml')
 
+    # Camera info publisher - reads from calibration YAML files
+    camera_info_publisher = Node(
+        package='esvo_time_surface',
+        executable='camera_info_publisher.py',
+        name='camera_info_publisher',
+        parameters=[
+            {'use_sim_time': True},
+            {'calib_dir': LaunchConfiguration('calib_dir')},
+            {'frame_id': 'dvs'},
+            {'publish_rate': 100.0},
+            {'left_topic': '/davis/left/camera_info'},
+            {'right_topic': '/davis/right/camera_info'},
+        ],
+        output='screen'
+    )
+
     # Time Surface - Left
     time_surface_left = Node(
         package='esvo_time_surface',
@@ -140,6 +156,7 @@ def generate_launch_description():
         calib_dir_arg,
         sync_rate_arg,
         # Nodes
+        camera_info_publisher,
         time_surface_left,
         time_surface_right,
         sync_timer,
