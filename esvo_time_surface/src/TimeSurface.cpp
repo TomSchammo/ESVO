@@ -32,7 +32,7 @@ TimeSurface::TimeSurface()
 
   // setup subscribers and publishers
   event_sub_ = this->create_subscription<dvs_msgs::msg::EventArray>(
-    "events", 0, std::bind(&TimeSurface::eventsCallback, this, std::placeholders::_1));
+    "events", 10, std::bind(&TimeSurface::eventsCallback, this, std::placeholders::_1));
   camera_info_sub_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
     "camera_info", 1, std::bind(&TimeSurface::cameraInfoCallback, this, std::placeholders::_1));
   sync_topic_ = this->create_subscription<builtin_interfaces::msg::Time>(

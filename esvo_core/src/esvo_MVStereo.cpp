@@ -130,11 +130,11 @@ esvo_MVStereo::esvo_MVStereo()
 
   // callbacks functions
   events_left_sub_ = this->create_subscription<dvs_msgs::msg::EventArray>(
-    "events_left", 0, [this](const dvs_msgs::msg::EventArray::SharedPtr msg) { eventsCallback(msg, events_left_); });
+    "events_left", 10, [this](const dvs_msgs::msg::EventArray::SharedPtr msg) { eventsCallback(msg, events_left_); });
   events_right_sub_ = this->create_subscription<dvs_msgs::msg::EventArray>(
-    "events_right", 0, [this](const dvs_msgs::msg::EventArray::SharedPtr msg) { eventsCallback(msg, events_right_); });
+    "events_right", 10, [this](const dvs_msgs::msg::EventArray::SharedPtr msg) { eventsCallback(msg, events_right_); });
   stampedPose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-    "stamped_pose", 0, std::bind(&esvo_MVStereo::stampedPoseCallback, this, std::placeholders::_1));
+    "stamped_pose", 10, std::bind(&esvo_MVStereo::stampedPoseCallback, this, std::placeholders::_1));
   // message_filters subscribers and synchronizer
   TS_left_sub_.subscribe(this, "time_surface_left", rmw_qos_profile_default);
   TS_right_sub_.subscribe(this, "time_surface_right", rmw_qos_profile_default);

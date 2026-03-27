@@ -48,7 +48,7 @@ esvo_Tracking::esvo_Tracking()
 
   // online data callbacks
   events_left_sub_ = this->create_subscription<dvs_msgs::msg::EventArray>(
-    "events_left", 0, std::bind(&esvo_Tracking::eventsCallback, this, std::placeholders::_1));
+    "events_left", 10, std::bind(&esvo_Tracking::eventsCallback, this, std::placeholders::_1));
   // message_filters subscribers and synchronizer
   TS_left_sub_.subscribe(this, "time_surface_left", rmw_qos_profile_default);
   TS_right_sub_.subscribe(this, "time_surface_right", rmw_qos_profile_default);
@@ -62,9 +62,9 @@ esvo_Tracking::esvo_Tracking()
   path_pub_ = this->create_publisher<nav_msgs::msg::Path>("/esvo_tracking/trajectory", 1);
   // Subscribers
   map_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-    "pointcloud", 0, std::bind(&esvo_Tracking::refMapCallback, this, std::placeholders::_1));// local map in the ref view.
+    "pointcloud", 10, std::bind(&esvo_Tracking::refMapCallback, this, std::placeholders::_1));// local map in the ref view.
   stampedPose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-    "stamped_pose", 0, std::bind(&esvo_Tracking::stampedPoseCallback, this, std::placeholders::_1));// for accessing the pose of the ref view.
+    "stamped_pose", 10, std::bind(&esvo_Tracking::stampedPoseCallback, this, std::placeholders::_1));// for accessing the pose of the ref view.
 
   /*** For Visualization and Test ***/
   reprojMap_pub_left_ = image_transport::create_publisher(this, "Reproj_Map_Left");
