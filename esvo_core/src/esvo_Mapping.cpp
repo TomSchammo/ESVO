@@ -578,7 +578,7 @@ bool esvo_Mapping::dataTransferring()
     LOG(INFO) << "Data Transferring (vALLEventsPtr_left_): " << vALLEventsPtr_left_.size();
     LOG(INFO) << "Data Transforming (vCloseEventsPtr_left_): " << vCloseEventsPtr_left_.size();
 #endif
-    
+
     // Ideally, each event occurs at an unique perspective (virtual view) -- pose.
     // In practice, this is intractable in real-time application.
     // We made a trade off by assuming that events occurred within (0.05 * BM_half_slice_thickness_) ms share an identical pose (virtual view).

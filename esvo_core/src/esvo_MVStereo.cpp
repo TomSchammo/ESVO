@@ -125,7 +125,7 @@ esvo_MVStereo::esvo_MVStereo()
   msm_ = (eMVStereoMode)MVStereoMode;
 
   // initialize Event Block Matcher
-  ebm_.resetParameters(BM_patch_size_X_, BM_patch_size_Y_, minDisparity, maxDisparity, 
+  ebm_.resetParameters(BM_patch_size_X_, BM_patch_size_Y_, minDisparity, maxDisparity,
                        BM_step_, BM_ZNCC_Threshold_, BM_bUpDownConfiguration_);
 
   // callbacks functions
