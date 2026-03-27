@@ -75,8 +75,8 @@ bool esvo_core::core::EventMatcher::match_an_event(
     candidates_time_check.reserve(numCandidate);
     while (candidate_begin_it != candidate_end_it)
     {
-      if (rclcpp::Time((*candidate_begin_it)->ts) >= time_lowBound &&
-          rclcpp::Time((*candidate_begin_it)->ts) <= time_upBound)
+      if (rclcpp::Time((*candidate_begin_it)->ts).nanoseconds() >= time_lowBound.nanoseconds() &&
+          rclcpp::Time((*candidate_begin_it)->ts).nanoseconds() <= time_upBound.nanoseconds())
       {
         // add polarity check
         if(ev_ptr->polarity == (*candidate_begin_it)->polarity)

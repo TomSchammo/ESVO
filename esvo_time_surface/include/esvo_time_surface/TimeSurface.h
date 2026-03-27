@@ -63,7 +63,7 @@ public:
     for(auto it = eq.rbegin(); it != eq.rend(); ++it)
     {
       const dvs_msgs::msg::Event& e = *it;
-      if(rclcpp::Time(e.ts) < t)
+      if(rclcpp::Time(e.ts).nanoseconds() < t.nanoseconds())
       {
         *ev = *it;
         return true;

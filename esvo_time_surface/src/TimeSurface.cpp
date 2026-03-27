@@ -81,7 +81,7 @@ void TimeSurface::createTimeSurfaceAtTime(const rclcpp::Time& external_sync_time
         const rclcpp::Time most_recent_stamp_at_coordXY(most_recent_event_at_coordXY_before_T.ts);
         if(most_recent_stamp_at_coordXY.seconds() > 0)
         {
-          const double dt = (external_sync_time - most_recent_stamp_at_coordXY).seconds();
+          const double dt = external_sync_time.seconds() - most_recent_stamp_at_coordXY.seconds();
           double polarity = (most_recent_event_at_coordXY_before_T.polarity) ? 1.0 : -1.0;
           double expVal = std::exp(-dt / decay_sec);
           if(!ignore_polarity_)
@@ -252,7 +252,7 @@ void TimeSurface::thread(Job &job)
         const rclcpp::Time most_recent_stamp_at_coordXY(most_recent_event_at_coordXY_before_T.ts);
         if(most_recent_stamp_at_coordXY.seconds() > 0)
         {
-          const double dt = (job.external_sync_time_ - most_recent_stamp_at_coordXY).seconds();
+          const double dt = job.external_sync_time_.seconds() - most_recent_stamp_at_coordXY.seconds();
           double polarity = (most_recent_event_at_coordXY_before_T.polarity) ? 1.0 : -1.0;
           double expVal = std::exp(-dt / job.decay_sec_);
           if(!ignore_polarity_)
@@ -420,7 +420,7 @@ void TimeSurface::eventsCallback(const dvs_msgs::msg::EventArray::SharedPtr msg)
   {
     events_.push_back(e);
     int i = events_.size() - 2;
-    while(i >= 0 && rclcpp::Time(events_[i].ts) > rclcpp::Time(e.ts))
+    while(i >= 0 && rclcpp::Time(events_[i].ts).nanoseconds() > rclcpp::Time(e.ts).nanoseconds())
     {
       events_[i+1] = events_[i];
       i--;

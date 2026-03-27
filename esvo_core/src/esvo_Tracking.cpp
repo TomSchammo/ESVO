@@ -245,7 +245,7 @@ esvo_Tracking::curDataTransferring()
   auto TS_it = TS_history_.rbegin();
 
   // TS_history may not be updated before the tracking loop excutes the data transfering
-  if(cur_.t_ == TS_it->first)
+  if(cur_.t_.nanoseconds() == TS_it->first.nanoseconds())
     return false;
   cur_.t_ = TS_it->first;
   cur_.pTsObs_ = &TS_it->second;
@@ -303,7 +303,7 @@ void esvo_Tracking::eventsCallback(const dvs_msgs::msg::EventArray::SharedPtr ms
   {
     events_left_.push_back(e);
     int i = events_left_.size() - 2;
-    while(i >= 0 && rclcpp::Time(events_left_[i].ts) > rclcpp::Time(e.ts)) // we may have to sort the queue, just in case the raw event messages do not come in a chronological order.
+    while(i >= 0 && rclcpp::Time(events_left_[i].ts).nanoseconds() > rclcpp::Time(e.ts).nanoseconds()) // we may have to sort the queue, just in case the raw event messages do not come in a chronological order.
     {
       events_left_[i+1] = events_left_[i];
       i--;

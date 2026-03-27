@@ -35,7 +35,17 @@ namespace tools
 #define NUM_THREAD_MAPPING 4
 
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloud;
-using RefPointCloudMap = std::map<rclcpp::Time, PointCloud::Ptr>;
+
+// Custom comparator for rclcpp::Time to avoid "can't compare times with different time sources"
+struct RclcppTimeCmp
+{
+  bool operator()(const rclcpp::Time &a, const rclcpp::Time &b) const
+  {
+    return a.nanoseconds() < b.nanoseconds();
+  }
+};
+
+using RefPointCloudMap = std::map<rclcpp::Time, PointCloud::Ptr, RclcppTimeCmp>;
 
 using Transformation = kindr::minimal::QuatTransformation;
 
@@ -61,7 +71,7 @@ inline static EventQueue::iterator EventBuffer_upper_bound(
     [](const rclcpp::Time & t, const dvs_msgs::msg::Event & e) {return t.seconds() < rclcpp::Time(e.ts).seconds();});
 }
 
-using StampTransformationMap = std::map<rclcpp::Time, tools::Transformation>;
+using StampTransformationMap = std::map<rclcpp::Time, tools::Transformation, RclcppTimeCmp>;
 inline static StampTransformationMap::iterator StampTransformationMap_lower_bound(
   StampTransformationMap& stm, rclcpp::Time& t)
 {

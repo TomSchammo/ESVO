@@ -525,7 +525,7 @@ bool esvo_Mapping::dataTransferring()
           return false;
       }
     }
-    if(it_end->first == it_begin->first)
+    if(it_end->first.nanoseconds() == it_begin->first.nanoseconds())
       break;
     it_end++;
   }
@@ -538,7 +538,8 @@ bool esvo_Mapping::dataTransferring()
   {
     vEventsPtr_left_SGM_.clear();
     rclcpp::Time t_end    = TS_obs_.first;
-    rclcpp::Time t_begin(std::max(0.0, t_end.seconds() - 2 * BM_half_slice_thickness_));
+    rclcpp::Time t_begin = t_end - rclcpp::Duration::from_seconds(
+        std::min(t_end.seconds(), 2 * BM_half_slice_thickness_));
     auto ev_end_it     = tools::EventBuffer_lower_bound(events_left_, t_end);
     auto ev_begin_it   = tools::EventBuffer_lower_bound(events_left_, t_begin);
     const size_t MAX_NUM_Event_INVOLVED = 30000;
@@ -559,7 +560,8 @@ bool esvo_Mapping::dataTransferring()
 
     // load allEvent
     rclcpp::Time t_end    = TS_obs_.first;
-    rclcpp::Time t_begin(std::max(0.0, t_end.seconds() - 10 * BM_half_slice_thickness_));
+    rclcpp::Time t_begin = t_end - rclcpp::Duration::from_seconds(
+        std::min(t_end.seconds(), 10 * BM_half_slice_thickness_));
     auto ev_end_it     = tools::EventBuffer_lower_bound(events_left_, t_end);
     auto ev_begin_it   = tools::EventBuffer_lower_bound(events_left_, t_begin);
     const size_t MAX_NUM_Event_INVOLVED = PROCESS_EVENT_NUM_;//10000
@@ -594,7 +596,7 @@ bool esvo_Mapping::dataTransferring()
         if(ESVO_System_Status_ != "WORKING")
           return false;
       }
-      t_tmp = rclcpp::Time(t_tmp.seconds() + 0.05 * BM_half_slice_thickness_);
+      t_tmp = t_tmp + rclcpp::Duration::from_seconds(0.05 * BM_half_slice_thickness_);
     }
 #ifdef ESVO_CORE_MAPPING_DEBUG
     LOG(INFO) << "Data Transferring (stampTransformation map): " << st_map_.size();
@@ -700,7 +702,7 @@ void esvo_Mapping::eventsCallback(
   {
     EQ.push_back(e);
     int i = EQ.size() - 2;
-    while(i >= 0 && rclcpp::Time(EQ[i].ts) > rclcpp::Time(e.ts)) // we may have to sort the queue, just in case the raw event messages do not come in a chronological order.
+    while(i >= 0 && rclcpp::Time(EQ[i].ts).nanoseconds() > rclcpp::Time(e.ts).nanoseconds()) // we may have to sort the queue, just in case the raw event messages do not come in a chronological order.
     {
       EQ[i+1] = EQ[i];
       i--;

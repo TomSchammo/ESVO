@@ -565,7 +565,7 @@ bool esvo_MVStereo::dataTransferring()
       it_end->second.setTransformation(tr);
       TS_obs_ = *it_end;
     }
-    if(it_end->first == it_begin->first)
+    if(it_end->first.nanoseconds() == it_begin->first.nanoseconds())
       break;
     it_end++;
   }
@@ -610,7 +610,8 @@ bool esvo_MVStereo::dataTransferring()
   {
     vEventsPtr_left_SGM_.clear();
     rclcpp::Time t_end    = TS_obs_.first;
-    rclcpp::Time t_begin(std::max(0.0, t_end.seconds() - 2 * BM_half_slice_thickness_));
+    rclcpp::Time t_begin = t_end - rclcpp::Duration::from_seconds(
+        std::min(t_end.seconds(), 2 * BM_half_slice_thickness_));
     auto ev_end_it     = tools::EventBuffer_lower_bound(events_left_, t_end);
     auto ev_begin_it   = tools::EventBuffer_lower_bound(events_left_, t_begin);
     vEventsPtr_left_SGM_.reserve(30000);
@@ -630,7 +631,8 @@ bool esvo_MVStereo::dataTransferring()
 
     // load allEvent
     rclcpp::Time t_end    = TS_obs_.first;
-    rclcpp::Time t_begin(std::max(0.0, t_end.seconds() - 10 * BM_half_slice_thickness_));
+    rclcpp::Time t_begin = t_end - rclcpp::Duration::from_seconds(
+        std::min(t_end.seconds(), 10 * BM_half_slice_thickness_));
     auto ev_end_it     = tools::EventBuffer_lower_bound(events_left_, t_end);
     auto ev_begin_it   = tools::EventBuffer_lower_bound(events_left_, t_begin);//events_left_.begin();
     const size_t MAX_NUM_Event_INVOLVED = 10000;
@@ -650,12 +652,12 @@ bool esvo_MVStereo::dataTransferring()
     // the sampling interval is 0.5 ms)
     st_map_.clear();
     rclcpp::Time t_tmp = t_begin;
-    while(t_tmp.seconds() <= t_end.seconds())
+    while(t_tmp.nanoseconds() <= t_end.nanoseconds())
     {
       Transformation tr;
       if(getPoseAt(t_tmp, tr, dvs_frame_id_))
         st_map_.emplace(t_tmp, tr);
-      t_tmp = rclcpp::Time(t_tmp.seconds() + 0.05 * BM_half_slice_thickness_);
+      t_tmp = t_tmp  + rclcpp::Duration::from_seconds( 0.05 * BM_half_slice_thickness_);
     }
 #ifdef ESVO_CORE_MVSTEREO_LOG
     LOG(INFO) << "Data Transfering (stampTransformation map): " << st_map_.size();
@@ -780,7 +782,7 @@ void esvo_MVStereo::eventsCallback(
   {
     EQ.push_back(e);
     int i = EQ.size() - 2;
-    while(i >= 0 && rclcpp::Time(EQ[i].ts) > rclcpp::Time(e.ts)) // we may have to sort the queue, just in case the raw event messages do not come in a chronological order.
+    while(i >= 0 && rclcpp::Time(EQ[i].ts).nanoseconds() > rclcpp::Time(e.ts).nanoseconds()) // we may have to sort the queue, just in case the raw event messages do not come in a chronological order.
     {
       EQ[i+1] = EQ[i];
       i--;
