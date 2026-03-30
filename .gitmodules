@@ -10,3 +10,6 @@
 [submodule "minkindr_ros2"]
 	path = minkindr_ros2
 	url = https://github.com/TomSchammo/minkindr_ros2
+[submodule "metavision_bridge"]
+	path = metavision_bridge
+	url = https://github.com/TomSchammo/metavision_bridge
