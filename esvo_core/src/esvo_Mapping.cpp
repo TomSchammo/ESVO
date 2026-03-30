@@ -126,12 +126,14 @@ esvo_Mapping::esvo_Mapping()
   this->declare_parameter("ESVO_SYSTEM_STATUS", std::string("INITIALIZATION"));
   ESVO_System_Status_ = "INITIALIZATION";
 
+  auto qos = rclcpp::QoS(10).best_effort();
+
   // callback functions
   events_left_sub_ = create_subscription<dvs_msgs::msg::EventArray>(
-    "events_left", 10,
+    "events_left", qos,
     [this](const dvs_msgs::msg::EventArray::SharedPtr msg) { eventsCallback(msg, events_left_); });
   events_right_sub_ = create_subscription<dvs_msgs::msg::EventArray>(
-    "events_right", 10,
+    "events_right", qos,
     [this](const dvs_msgs::msg::EventArray::SharedPtr msg) { eventsCallback(msg, events_right_); });
   stampedPose_sub_ = create_subscription<geometry_msgs::msg::PoseStamped>(
     "stamped_pose", 10,

@@ -48,7 +48,7 @@ esvo_Tracking::esvo_Tracking()
 
   // online data callbacks
   events_left_sub_ = this->create_subscription<dvs_msgs::msg::EventArray>(
-    "events_left", 10, std::bind(&esvo_Tracking::eventsCallback, this, std::placeholders::_1));
+    "events_left", rclcpp::QoS(10).best_effort(), std::bind(&esvo_Tracking::eventsCallback, this, std::placeholders::_1));
   // message_filters subscribers and synchronizer
   TS_left_sub_.subscribe(this, "time_surface_left", rmw_qos_profile_default);
   TS_right_sub_.subscribe(this, "time_surface_right", rmw_qos_profile_default);
