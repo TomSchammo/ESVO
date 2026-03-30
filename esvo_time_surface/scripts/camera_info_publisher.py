@@ -27,8 +27,8 @@ class CameraInfoPublisher(Node):
         self.declare_parameter('calib_dir', '')
         self.declare_parameter('frame_id', 'dvs')
         self.declare_parameter('publish_rate', 100.0)
-        self.declare_parameter('left_topic', '/davis/left/camera_info')
-        self.declare_parameter('right_topic', '/davis/right/camera_info')
+        self.declare_parameter('left_topic', '/evk/left/camera_info')
+        self.declare_parameter('right_topic', '/evk/right/camera_info')
 
         # Get parameters
         calib_dir = self.get_parameter('calib_dir').get_parameter_value().string_value
