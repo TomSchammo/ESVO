@@ -74,7 +74,7 @@ void TimeSurface::createTimeSurfaceAtTime(const rclcpp::Time& external_sync_time
   cv::Mat time_surface_map;
   time_surface_map = cv::Mat::zeros(sensor_size_, CV_64F);
 
-  const rclcpp::Time sync_time_in_sensor_time = external_sync_time + this->time_offset_;
+  const rclcpp::Time sync_time_in_sensor_time = external_sync_time + this->time_offset_.value();
 
   // Loop through all coordinates
   for(int y=0; y<sensor_size_.height; ++y)

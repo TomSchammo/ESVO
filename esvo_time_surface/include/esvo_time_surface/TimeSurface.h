@@ -1,6 +1,7 @@
 #ifndef esvo_time_surface_H_
 #define esvo_time_surface_H_
 
+#include <optional>
 #include <rclcpp/rclcpp.hpp>
 #include <builtin_interfaces/msg/time.hpp>
 #include <cv_bridge/cv_bridge.hpp>
@@ -147,8 +148,8 @@ private:
   rclcpp::Time sync_time_;
   bool bSensorInitialized_;
 
-  // time sync
-  rclcpp::Duration time_offset_;
+  // uninitialized time sync
+  std::optional<rclcpp::Duration> time_offset_ = std::nullopt;
 
   // offline parameters
   double decay_ms_;
