@@ -38,6 +38,10 @@ TimeSurface::TimeSurface()
   sync_topic_ = this->create_subscription<builtin_interfaces::msg::Time>(
     "sync", 1, std::bind(&TimeSurface::syncCallback, this, std::placeholders::_1));
   time_surface_pub_ = image_transport::create_publisher(this, "time_surface");
+  time_offset_sub_ = this->create_subscription<builtin_interfaces::msg::Duration>(
+     "/time_offset", rclcpp::QoS(10).best_effort(), [this](const builtin_interfaces::msg::Duration::SharedPtr msg) {
+       this->time_offset_ = rclcpp::Duration(*msg);
+     });
 
   bCamInfoAvailable_ = false;
   bSensorInitialized_ = false;
@@ -70,18 +74,20 @@ void TimeSurface::createTimeSurfaceAtTime(const rclcpp::Time& external_sync_time
   cv::Mat time_surface_map;
   time_surface_map = cv::Mat::zeros(sensor_size_, CV_64F);
 
+  const rclcpp::Time sync_time_in_sensor_time = external_sync_time + this->time_offset_;
+
   // Loop through all coordinates
   for(int y=0; y<sensor_size_.height; ++y)
   {
     for(int x=0; x<sensor_size_.width; ++x)
     {
       dvs_msgs::msg::Event most_recent_event_at_coordXY_before_T;
-      if(pEventQueueMat_->getMostRecentEventBeforeT(x, y, external_sync_time, &most_recent_event_at_coordXY_before_T))
+      if(pEventQueueMat_->getMostRecentEventBeforeT(x, y, sync_time_in_sensor_time, &most_recent_event_at_coordXY_before_T))
       {
         const rclcpp::Time most_recent_stamp_at_coordXY(most_recent_event_at_coordXY_before_T.ts);
         if(most_recent_stamp_at_coordXY.seconds() > 0)
         {
-          const double dt = external_sync_time.seconds() - most_recent_stamp_at_coordXY.seconds();
+          const double dt = sync_time_in_sensor_time.seconds() - most_recent_stamp_at_coordXY.seconds();
           double polarity = (most_recent_event_at_coordXY_before_T.polarity) ? 1.0 : -1.0;
           double expVal = std::exp(-dt / decay_sec);
           if(!ignore_polarity_)

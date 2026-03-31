@@ -23,7 +23,7 @@ namespace esvo_time_surface
 #define NUM_THREAD_TS 1
 using EventQueue = std::deque<dvs_msgs::msg::Event>;
 
-class EventQueueMat 
+class EventQueueMat
 {
 public:
   EventQueueMat(int width, int height, int queueLen)
@@ -138,6 +138,7 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub_;
   rclcpp::Subscription<builtin_interfaces::msg::Time>::SharedPtr sync_topic_;
   image_transport::Publisher time_surface_pub_;
+  rclcpp::Subscription<builtin_interfaces::msg::Duration>::SharedPtr time_offset_sub_;
 
   // online parameters
   bool bCamInfoAvailable_;
@@ -145,6 +146,9 @@ private:
   cv::Size sensor_size_;
   rclcpp::Time sync_time_;
   bool bSensorInitialized_;
+
+  // time sync
+  rclcpp::Duration time_offset_;
 
   // offline parameters
   double decay_ms_;
