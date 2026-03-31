@@ -104,7 +104,7 @@ class TimeSurface : public rclcpp::Node
     size_t start_col_, end_col_;
     size_t start_row_, end_row_;
     size_t i_thread_;
-    rclcpp::Time external_sync_time_;
+    rclcpp::Time sync_time_in_sensor_time;
     double decay_sec_;
   };
 

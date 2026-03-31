@@ -178,6 +178,8 @@ void TimeSurface::createTimeSurfaceAtTime_hyperthread(const rclcpp::Time& extern
   cv::Mat time_surface_map;
   time_surface_map = cv::Mat::zeros(sensor_size_, CV_64F);
 
+  const rclcpp::Time sync_time_in_sensor_time = external_sync_time + this->time_offset_.value();
+
   // distribute jobs
   std::vector<Job> jobs(NUM_THREAD_TS);
   size_t num_col_per_thread = sensor_size_.width / NUM_THREAD_TS;
@@ -194,7 +196,7 @@ void TimeSurface::createTimeSurfaceAtTime_hyperthread(const rclcpp::Time& extern
       jobs[i].end_col_ = jobs[i].start_col_ + num_col_per_thread - 1;
     jobs[i].start_row_ = 0;
     jobs[i].end_row_ = sensor_size_.height - 1;
-    jobs[i].external_sync_time_ = external_sync_time;
+    jobs[i].sync_time_in_sensor_time = sync_time_in_sensor_time;
     jobs[i].decay_sec_ = decay_sec;
   }
 
@@ -253,12 +255,12 @@ void TimeSurface::thread(Job &job)
     for(size_t x = start_col; x <= end_col; x++)
     {
       dvs_msgs::msg::Event most_recent_event_at_coordXY_before_T;
-      if(pEventQueueMat_->getMostRecentEventBeforeT(x, y, job.external_sync_time_, &most_recent_event_at_coordXY_before_T))
+      if(pEventQueueMat_->getMostRecentEventBeforeT(x, y, job.sync_time_in_sensor_time, &most_recent_event_at_coordXY_before_T))
       {
         const rclcpp::Time most_recent_stamp_at_coordXY(most_recent_event_at_coordXY_before_T.ts);
         if(most_recent_stamp_at_coordXY.seconds() > 0)
         {
-          const double dt = job.external_sync_time_.seconds() - most_recent_stamp_at_coordXY.seconds();
+          const double dt = job.sync_time_in_sensor_time.seconds() - most_recent_stamp_at_coordXY.seconds();
           double polarity = (most_recent_event_at_coordXY_before_T.polarity) ? 1.0 : -1.0;
           double expVal = std::exp(-dt / job.decay_sec_);
           if(!ignore_polarity_)
