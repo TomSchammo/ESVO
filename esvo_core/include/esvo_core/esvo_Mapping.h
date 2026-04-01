@@ -41,6 +41,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <std_msgs/msg/string.hpp>
 
 namespace esvo_core
 {
@@ -111,10 +112,12 @@ class esvo_Mapping : public rclcpp::Node
   // Subscribers
   rclcpp::Subscription<dvs_msgs::msg::EventArray>::SharedPtr events_left_sub_, events_right_sub_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr stampedPose_sub_;
+  rclcpp::Subscription<std_msgs::msg::String>::SharedPtr system_status_sub_;
   message_filters::Subscriber<sensor_msgs::msg::Image> TS_left_sub_, TS_right_sub_;
 
   // Publishers
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pc_pub_, gpc_pub_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr system_status_pub_;
   image_transport::Publisher it_pub_;
   double t_last_pub_pc_;
 
