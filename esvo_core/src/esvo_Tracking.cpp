@@ -43,8 +43,13 @@ esvo_Tracking::esvo_Tracking()
   bSaveTrajectory_     = tools::param(this, "SAVE_TRAJECTORY", false);
   bVisualizeTrajectory_ = tools::param(this, "VISUALIZE_TRAJECTORY", true);
   resultPath_          = tools::param(this, "PATH_TO_SAVE_TRAJECTORY", std::string());
-  // Declare parameter for system status
-  this->declare_parameter("ESVO_SYSTEM_STATUS", ESVO_System_Status_);
+  // system status - use shared topic for inter-node coordination (ROS2 parameters are node-local)
+  system_status_pub_ = create_publisher<std_msgs::msg::String>("/ESVO_SYSTEM_STATUS", rclcpp::QoS(1).transient_local());
+  system_status_sub_ = create_subscription<std_msgs::msg::String>(
+    "/ESVO_SYSTEM_STATUS", rclcpp::QoS(1).transient_local(),
+    [this](const std_msgs::msg::String::SharedPtr msg) {
+      ESVO_System_Status_ = msg->data;
+    });
 
   // online data callbacks
   events_left_sub_ = this->create_subscription<dvs_msgs::msg::EventArray>(
@@ -91,8 +96,7 @@ void esvo_Tracking::TrackingLoop()
       r.sleep();
       continue;
     }
-    // Reset - check parameter for system status
-    this->get_parameter("ESVO_SYSTEM_STATUS", ESVO_System_Status_);
+    // Reset - check system status (updated via shared topic subscription)
     if(ESVO_System_Status_ == "INITIALIZATION" && ets_ == WORKING)// This is true when the system is reset from dynamic reconfigure
     {
       reset();
@@ -139,7 +143,12 @@ void esvo_Tracking::TrackingLoop()
       if(ets_ == IDLE)
         ets_ = WORKING;
       if(ESVO_System_Status_ != "WORKING")
-        this->set_parameter(rclcpp::Parameter("ESVO_SYSTEM_STATUS", "WORKING"));
+      {
+        ESVO_System_Status_ = "WORKING";
+        auto status_msg = std_msgs::msg::String();
+        status_msg.data = ESVO_System_Status_;
+        system_status_pub_->publish(status_msg);
+      }
       if(rpType_ == REG_NUMERICAL)
         rpSolver_.solve_numerical();
       if(rpType_ == REG_ANALYTICAL)
@@ -166,7 +175,10 @@ void esvo_Tracking::TrackingLoop()
     }
     else
     {
-      this->set_parameter(rclcpp::Parameter("ESVO_SYSTEM_STATUS", "INITIALIZATION"));
+      ESVO_System_Status_ = "INITIALIZATION";
+      auto status_msg = std_msgs::msg::String();
+      status_msg.data = ESVO_System_Status_;
+      system_status_pub_->publish(status_msg);
       ets_ = IDLE;
 //      LOG(INFO) << "Tracking thread is IDLE";
     }
@@ -209,8 +221,7 @@ esvo_Tracking::refDataTransferring()
   // load reference info
   ref_.t_ = refPCMap_.rbegin()->first;
 
-  this->get_parameter("ESVO_SYSTEM_STATUS", ESVO_System_Status_);
-//  LOG(INFO) << "SYSTEM STATUS(T"
+  // ESVO_System_Status_ is updated via shared topic subscription
   if(ESVO_System_Status_ == "INITIALIZATION" && ets_ == IDLE)
     ref_.tr_.setIdentity();
   if(ESVO_System_Status_ == "WORKING" || (ESVO_System_Status_ == "INITIALIZATION" && ets_ == WORKING))
@@ -250,7 +261,7 @@ esvo_Tracking::curDataTransferring()
   cur_.t_ = TS_it->first;
   cur_.pTsObs_ = &TS_it->second;
 
-  this->get_parameter("ESVO_SYSTEM_STATUS", ESVO_System_Status_);
+  // ESVO_System_Status_ is updated via shared topic subscription
   if(ESVO_System_Status_ == "INITIALIZATION" && ets_ == IDLE)
   {
     cur_.tr_ = ref_.tr_;

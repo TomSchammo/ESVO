@@ -122,9 +122,18 @@ esvo_Mapping::esvo_Mapping()
   ebm_.resetParameters(BM_patch_size_X_, BM_patch_size_Y_, minDisparity, maxDisparity,
                        BM_step_, BM_ZNCC_Threshold_, BM_bUpDownConfiguration_);
 
-  // system status
-  this->declare_parameter("ESVO_SYSTEM_STATUS", std::string("INITIALIZATION"));
+  // system status - use shared topic for inter-node coordination (ROS2 parameters are node-local)
   ESVO_System_Status_ = "INITIALIZATION";
+  system_status_pub_ = create_publisher<std_msgs::msg::String>("/ESVO_SYSTEM_STATUS", rclcpp::QoS(1).transient_local());
+  system_status_sub_ = create_subscription<std_msgs::msg::String>(
+    "/ESVO_SYSTEM_STATUS", rclcpp::QoS(1).transient_local(),
+    [this](const std_msgs::msg::String::SharedPtr msg) {
+      ESVO_System_Status_ = msg->data;
+    });
+  // Publish initial status
+  auto status_msg = std_msgs::msg::String();
+  status_msg.data = ESVO_System_Status_;
+  system_status_pub_->publish(status_msg);
 
   // callback functions
   events_left_sub_ = create_subscription<dvs_msgs::msg::EventArray>(
@@ -520,7 +529,6 @@ bool esvo_Mapping::dataTransferring()
       else
       {
         // check if the tracking node is still working normally
-        this->get_parameter("ESVO_SYSTEM_STATUS", ESVO_System_Status_);
         if(ESVO_System_Status_ != "WORKING")
           return false;
       }
@@ -592,7 +600,6 @@ bool esvo_Mapping::dataTransferring()
         st_map_.emplace(t_tmp, tr);
       else
       {
-        this->get_parameter("ESVO_SYSTEM_STATUS", ESVO_System_Status_);
         if(ESVO_System_Status_ != "WORKING")
           return false;
       }
@@ -807,7 +814,9 @@ void esvo_Mapping::reset()
   reset_future_ = reset_promise_.get_future();
   mapping_thread_future_ = mapping_thread_promise_.get_future();
   ESVO_System_Status_ = "INITIALIZATION";
-  this->set_parameter(rclcpp::Parameter("ESVO_SYSTEM_STATUS", ESVO_System_Status_));
+  auto status_msg = std_msgs::msg::String();
+  status_msg.data = ESVO_System_Status_;
+  system_status_pub_->publish(status_msg);
   std::thread MappingThread(&esvo_Mapping::MappingLoop, this,
                             std::move(mapping_thread_promise_), std::move(reset_future_));
   MappingThread.detach();

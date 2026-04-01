@@ -106,7 +106,7 @@ This will launch two *esvo_time_surface nodes* (for left and right event cameras
     
 To save trajectories at anytime, go to another terminal and terminate the system by
 
-    $ rosparam set /ESVO_SYSTEM_STATUS "TERMINATE"
+    $ ros2 topic pub --once /ESVO_SYSTEM_STATUS std_msgs/msg/String "data: 'TERMINATE'"
     
 You need to set the path in `/cfg/tracking_xxx.yaml` to which the result file will be saved.
 
