@@ -12,6 +12,8 @@ Usage:
     -p publish_rate:=100.0
 """
 
+# TODO(tom): Fix hacky RoI support
+
 import os
 import yaml
 import rclpy
@@ -88,8 +90,12 @@ class CameraInfoPublisher(Node):
         msg.header.frame_id = frame_id
 
         # Image dimensions
-        msg.width = calib.get('image_width', 0)
-        msg.height = calib.get('image_height', 0)
+        # msg.width = calib.get('image_width', 0)
+        # msg.height = calib.get('image_height', 0)
+
+        # roi dimensions
+        msg.width = calib.get('image_width', 0) // 10
+        msg.height = calib.get('image_height', 0) // 10
 
         # Distortion model
         msg.distortion_model = calib.get('distortion_model', 'plumb_bob')
@@ -105,6 +111,10 @@ class CameraInfoPublisher(Node):
         k_data = calib.get('camera_matrix', {}).get('data', [0] * 9)
         msg.k = [float(x) for x in k_data[:9]]
 
+        # RoI shift
+        msg.k[2] -= 576
+        msg.k[5] -= 324
+
         # Rectification matrix (R) - 3x3 -> 9 elements
         r_data = calib.get('rectification_matrix',
                            {}).get('data', [1, 0, 0, 0, 1, 0, 0, 0, 1])
@@ -113,6 +123,10 @@ class CameraInfoPublisher(Node):
         # Projection matrix (P) - 3x4 -> 12 elements
         p_data = calib.get('projection_matrix', {}).get('data', [0] * 12)
         msg.p = [float(x) for x in p_data[:12]]
+
+        # RoI shift
+        msg.p[2] -= 576
+        msg.p[6] -= 324
 
         self.get_logger().info(
             f'Loaded {yaml_path}: {msg.width}x{msg.height}, model={msg.distortion_model}'
