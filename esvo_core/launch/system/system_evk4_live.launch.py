@@ -102,7 +102,7 @@ def generate_launch_description():
 
     # Mapping node
     mapping_params_file = os.path.join(esvo_core_share, 'cfg', 'mapping',
-                                       'mapping_rpg.yaml')
+                                       'mapping_evk4.yaml')
     esvo_mapping = Node(package='esvo_core',
                         executable='esvo_Mapping',
                         name='esvo_Mapping',
@@ -126,7 +126,7 @@ def generate_launch_description():
 
     # Tracking node
     tracking_params_file = os.path.join(esvo_core_share, 'cfg', 'tracking',
-                                        'tracking_rpg.yaml')
+                                        'tracking_evk4.yaml')
     esvo_tracking = Node(package='esvo_core',
                          executable='esvo_Tracking',
                          name='esvo_Tracking',
