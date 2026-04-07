@@ -74,6 +74,9 @@ void TimeSurface::createTimeSurfaceAtTime(const rclcpp::Time& external_sync_time
   cv::Mat time_surface_map;
   time_surface_map = cv::Mat::zeros(sensor_size_, CV_64F);
 
+  if (!this->time_offset_.has_value())
+    return;
+
   const rclcpp::Time sync_time_in_sensor_time = external_sync_time + this->time_offset_.value();
 
   // Loop through all coordinates
@@ -177,6 +180,9 @@ void TimeSurface::createTimeSurfaceAtTime_hyperthread(const rclcpp::Time& extern
   const double decay_sec = decay_ms_ / 1000.0;
   cv::Mat time_surface_map;
   time_surface_map = cv::Mat::zeros(sensor_size_, CV_64F);
+
+  if (!this->time_offset_.has_value())
+    return;
 
   const rclcpp::Time sync_time_in_sensor_time = external_sync_time + this->time_offset_.value();
 
