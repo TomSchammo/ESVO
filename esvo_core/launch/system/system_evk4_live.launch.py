@@ -115,7 +115,7 @@ def generate_launch_description():
                         ],
                         parameters=[
                             mapping_params_file, {
-                                'use_sim_time': True,
+                                'use_sim_time': False,
                                 'dvs_frame_id': 'dvs',
                                 'world_frame_id': 'map',
                                 'calibInfoDir':
@@ -140,7 +140,7 @@ def generate_launch_description():
                          ],
                          parameters=[
                              tracking_params_file, {
-                                 'use_sim_time': True,
+                                 'use_sim_time': False,
                                  'dvs_frame_id': 'dvs',
                                  'world_frame_id': 'map',
                                  'calibInfoDir':
@@ -156,7 +156,7 @@ def generate_launch_description():
                      name='rviz2',
                      arguments=['-d', rviz_config],
                      parameters=[{
-                         'use_sim_time': True
+                         'use_sim_time': False
                      }],
                      output='screen')
 
