@@ -255,3 +255,71 @@ Please refer to `2.3 esvo_core/mvstereo`.
 * **23/02/2021** ESVO was integrated into the modular iniVation DV software platform. 
 It runs at up to 200 fps on Jetson TX2, and is fully open-source. 
 Download here: https://lnkd.in/deuRKSK.
+
+---
+
+# Usage with EVK4
+
+## Calibration
+
+ESVO expects a certain format for the intrinsic and extrinsic parameters.
+A script is provided to convert the JSON files created by the [Metavision Calibration Pipeline](https://docs.prophesee.ai/stable/samples/modules/calibration/calibration_pipeline.html) to the format expected by ESVO.
+
+```shell
+python scripts/convert_prophesee_calib.py \
+  --master-intrinsics /path/to/cam0_intrinsics.json \
+  --slave-intrinsics /path/to/cam1_intrinsics.json \
+  --extrinsics /path/to/extrinsics.json \
+  --output-dir esvo_core/calib/evk4
+```
+
+
+## Live tracking and mapping
+
+
+*1. Start the metavision driver:*
+
+`ros2 launch metavision_driver stereo_driver.launch.py`
+
+*2. Start the metavision bridge:*
+
+`ros2 launch metavision_bridge metavision_bridge.launch.py`
+
+*3. Launch ESVO:*
+
+`ros2 launch esvo_core system_evk4.launch.py`
+
+## Save Tracking/Mapping
+
+To save trajectory (poses):
+
+In `esvo_core/cfg/tracking/tracking_evk4.yaml`:
+
+```yaml
+SAVE_TRAJECTORY: false  # Change to true`
+PATH_TO_SAVE_TRAJECTORY: "/tmp/esvo_trajectory/"
+```
+
+Then terminate cleanly to trigger the save:
+
+`ros2 topic pub --once /ESVO_SYSTEM_STATUS std_msgs/msg/String "data: 'TERMINATE'"`
+
+This writes result.txt in TUM format (timestamp tx ty tz qx qy qz qw).
+
+Saving a rosbag for replay:
+
+```shell
+ros2 bag record /evk/left/events /evk/right/events \
+/evk/left/camera_info /evk/right/camera_info \
+/esvo_tracking/pose_pub /esvo_mapping/pointcloud_local \
+-o my_session
+```
+
+For just raw data capture (to replay through ESVO later):
+
+```shell
+ros2 bag record /evk/left/events /evk/right/events \
+/evk/left/camera_info /evk/right/camera_info \
+-o raw_capture
+```
+
