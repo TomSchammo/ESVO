@@ -9,7 +9,7 @@
     fusion_radius: 0
     FUSION_STRATEGY: "CONST_POINTS"
     maxNumFusionFrames: 40
-    maxNumFusionPoints: 18000
+    maxNumFusionPoints: 100000
     Denoising: true
     SmoothTimeSurface: false
     Regularization: true
@@ -17,7 +17,7 @@
     visualizeGPC_interval: 3
     NumGPC_added_per_refresh: 1000
     visualize_range: 5.0
-    PROCESS_EVENT_NUM: 8000
+    PROCESS_EVENT_NUM: 21300
     TS_HISTORY_LENGTH: 100
     INIT_SGM_DP_NUM_THRESHOLD: 500
     mapping_rate_hz: 20
@@ -29,7 +29,7 @@
     Tdist_stdvar: 56.5347
     BM_half_slice_thickness: 0.001
     BM_min_disparity: 1
-    BM_max_disparity: 100
+    BM_max_disparity: 850
     BM_step: 1
     BM_ZNCC_Threshold: 0.1
     BM_bUpDownConfiguration: false

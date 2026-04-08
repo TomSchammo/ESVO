@@ -8,12 +8,12 @@
     patch_size_X: 1
     patch_size_Y: 1
     kernelSize: 5
-    MAX_REGISTRATION_POINTS: 6000
-    BATCH_SIZE: 800
+    MAX_REGISTRATION_POINTS: 42600
+    BATCH_SIZE: 6400
     MAX_ITERATION: 10
     LSnorm: "Huber"
     huber_threshold: 50.0
-    MIN_NUM_EVENTS: 4000
+    MIN_NUM_EVENTS: 21300
     RegProblemType: 1
     SAVE_TRAJECTORY: false
     PATH_TO_SAVE_TRAJECTORY: "/tmp/esvo_trajectory/"
