@@ -35,6 +35,7 @@
 #include <deque>
 #include <mutex>
 #include <future>
+#include <optional>
 
 #include <cv_bridge/cv_bridge.hpp>
 #include <pcl/point_types.h>
@@ -42,6 +43,7 @@
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <builtin_interfaces/msg/duration.hpp>
 
 namespace esvo_core
 {
@@ -113,6 +115,7 @@ class esvo_Mapping : public rclcpp::Node
   rclcpp::Subscription<dvs_msgs::msg::EventArray>::SharedPtr events_left_sub_, events_right_sub_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr stampedPose_sub_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr system_status_sub_;
+  rclcpp::Subscription<builtin_interfaces::msg::Duration>::SharedPtr time_offset_sub_;
   message_filters::Subscriber<sensor_msgs::msg::Image> TS_left_sub_, TS_right_sub_;
 
   // Publishers
@@ -144,6 +147,7 @@ class esvo_Mapping : public rclcpp::Node
   std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
   size_t TS_id_;
   rclcpp::Time tf_lastest_common_time_;
+  std::optional<rclcpp::Duration> time_offset_;
 
   // system
   std::string ESVO_System_Status_;

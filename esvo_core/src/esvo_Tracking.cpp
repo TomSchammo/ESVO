@@ -54,6 +54,11 @@ esvo_Tracking::esvo_Tracking()
   // online data callbacks
   events_left_sub_ = this->create_subscription<dvs_msgs::msg::EventArray>(
     "events_left", rclcpp::QoS(10).best_effort(), std::bind(&esvo_Tracking::eventsCallback, this, std::placeholders::_1));
+  time_offset_sub_ = this->create_subscription<builtin_interfaces::msg::Duration>(
+    "/time_offset", rclcpp::QoS(10).best_effort(),
+    [this](const builtin_interfaces::msg::Duration::SharedPtr msg) {
+      this->time_offset_ = rclcpp::Duration(*msg);
+    });
   // message_filters subscribers and synchronizer
   TS_left_sub_.subscribe(this, "time_surface_left", rmw_qos_profile_default);
   TS_right_sub_.subscribe(this, "time_surface_right", rmw_qos_profile_default);
@@ -251,8 +256,14 @@ esvo_Tracking::refDataTransferring()
 bool
 esvo_Tracking::curDataTransferring()
 {
+  if (!time_offset_.has_value()) {
+    LOG(WARNING) << "time_offset not yet received, cannot search events";
+    return false;
+  }
+  rclcpp::Time cur_sensor_time = cur_.t_ + time_offset_.value();
+
   // load current observation
-  auto ev_last_it = EventBuffer_lower_bound(events_left_, cur_.t_);
+  auto ev_last_it = EventBuffer_lower_bound(events_left_, cur_sensor_time);
   auto TS_it = TS_history_.rbegin();
 
   // TS_history may not be updated before the tracking loop excutes the data transfering
@@ -274,7 +285,9 @@ esvo_Tracking::curDataTransferring()
 //    LOG(INFO) << "(WORKING) Assign cur's ("<< cur_.t_.nanoseconds() << ") pose with T_world_cur.";
   }
   // Count the number of events occuring since the last observation.
-  auto ev_cur_it = EventBuffer_lower_bound(events_left_, cur_.t_);
+  rclcpp::Time old_sensor_time = cur_sensor_time;
+  cur_sensor_time = cur_.t_ + time_offset_.value();
+  auto ev_cur_it = EventBuffer_lower_bound(events_left_, cur_sensor_time);
   cur_.numEventsSinceLastObs_ = std::distance(ev_last_it, ev_cur_it) + 1;
   return true;
 }
