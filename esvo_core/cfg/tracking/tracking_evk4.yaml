@@ -9,7 +9,7 @@
     patch_size_Y: 1
     kernelSize: 5
     MAX_REGISTRATION_POINTS: 42600
-    BATCH_SIZE: 6400
+    BATCH_SIZE: 100
     MAX_ITERATION: 10
     LSnorm: "Huber"
     huber_threshold: 50.0
