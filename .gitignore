@@ -3,3 +3,7 @@
 **/log
 
 **/uv.lock
+scripts/.python-version
+scripts/uv.lock
+scripts/.venv
+
