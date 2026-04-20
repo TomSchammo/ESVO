@@ -53,7 +53,7 @@ inline static std::vector<dvs_msgs::msg::Event*>::iterator EventVecPtr_lower_bou
   std::vector<dvs_msgs::msg::Event*>& vEventPtr, rclcpp::Time& t)
 {
   return std::lower_bound(vEventPtr.begin(), vEventPtr.end(), t,
-                          [](const dvs_msgs::msg::Event* e, const rclcpp::Time &t){return rclcpp::Time(e->ts).seconds() < t.seconds();});
+                          [](const dvs_msgs::msg::Event* e, const rclcpp::Time &t){return rclcpp::Time(e->ts).nanoseconds() < t.nanoseconds();});
 }
 
 using EventQueue = std::deque<dvs_msgs::msg::Event>;
@@ -61,14 +61,14 @@ inline static EventQueue::iterator EventBuffer_lower_bound(
   EventQueue& eb, rclcpp::Time& t)
 {
   return std::lower_bound(eb.begin(), eb.end(), t,
-    [](const dvs_msgs::msg::Event & e, const rclcpp::Time & t) {return rclcpp::Time(e.ts).seconds() < t.seconds();});
+    [](const dvs_msgs::msg::Event & e, const rclcpp::Time & t) {return rclcpp::Time(e.ts).nanoseconds() < t.nanoseconds();});
 }
 
 inline static EventQueue::iterator EventBuffer_upper_bound(
   EventQueue& eb, rclcpp::Time& t)
 {
   return std::upper_bound(eb.begin(), eb.end(), t,
-    [](const rclcpp::Time & t, const dvs_msgs::msg::Event & e) {return t.seconds() < rclcpp::Time(e.ts).seconds();});
+    [](const rclcpp::Time & t, const dvs_msgs::msg::Event & e) {return t.nanoseconds() < rclcpp::Time(e.ts).nanoseconds();});
 }
 
 using StampTransformationMap = std::map<rclcpp::Time, tools::Transformation, RclcppTimeCmp>;
@@ -76,7 +76,7 @@ inline static StampTransformationMap::iterator StampTransformationMap_lower_boun
   StampTransformationMap& stm, rclcpp::Time& t)
 {
   return std::lower_bound(stm.begin(), stm.end(), t,
-    [](const std::pair<rclcpp::Time, tools::Transformation>& st, const rclcpp::Time& t){return st.first.seconds() < t.seconds();});
+    [](const std::pair<rclcpp::Time, tools::Transformation>& st, const rclcpp::Time& t){return st.first.nanoseconds() < t.nanoseconds();});
 }
 
 /******************* Used by Block Match ********************/

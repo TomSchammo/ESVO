@@ -117,11 +117,11 @@ void esvo_Tracking::TrackingLoop()
     // Data Transfer (If mapping node had published refPC.)
     {
       std::lock_guard<std::mutex> lock(data_mutex_);
-      if(ref_.t_.seconds() < refPCMap_.rbegin()->first.seconds())// new reference map arrived
+      if(ref_.t_.nanoseconds() < refPCMap_.rbegin()->first.nanoseconds())// new reference map arrived
         refDataTransferring();
-      if(cur_.t_.seconds() < TS_history_.rbegin()->first.seconds())// new observation arrived
+      if(cur_.t_.nanoseconds() < TS_history_.rbegin()->first.nanoseconds())// new observation arrived
       {
-        if(ref_.t_.seconds() >= TS_history_.rbegin()->first.seconds())
+        if(ref_.t_.nanoseconds() >= TS_history_.rbegin()->first.nanoseconds())
         {
           LOG(INFO) << "The time_surface observation should be obtained after the reference frame";
           exit(-1);
