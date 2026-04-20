@@ -135,6 +135,7 @@ esvo_Mapping::esvo_Mapping()
   status_msg.data = ESVO_System_Status_;
   system_status_pub_->publish(status_msg);
 
+  // TODO check if 10 is enough or if events are dropped
   auto qos = rclcpp::QoS(10).best_effort();
 
   // callback functions

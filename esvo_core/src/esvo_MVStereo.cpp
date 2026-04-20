@@ -128,11 +128,14 @@ esvo_MVStereo::esvo_MVStereo()
   ebm_.resetParameters(BM_patch_size_X_, BM_patch_size_Y_, minDisparity, maxDisparity,
                        BM_step_, BM_ZNCC_Threshold_, BM_bUpDownConfiguration_);
 
+  // TODO check if 10 is enough or if events are dropped
+  auto qos = rclcpp::QoS(10).best_effort();
+
   // callbacks functions
   events_left_sub_ = this->create_subscription<dvs_msgs::msg::EventArray>(
-    "events_left", 10, [this](const dvs_msgs::msg::EventArray::SharedPtr msg) { eventsCallback(msg, events_left_); });
+    "events_left", qos, [this](const dvs_msgs::msg::EventArray::SharedPtr msg) { eventsCallback(msg, events_left_); });
   events_right_sub_ = this->create_subscription<dvs_msgs::msg::EventArray>(
-    "events_right", 10, [this](const dvs_msgs::msg::EventArray::SharedPtr msg) { eventsCallback(msg, events_right_); });
+    "events_right", qos, [this](const dvs_msgs::msg::EventArray::SharedPtr msg) { eventsCallback(msg, events_right_); });
   stampedPose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
     "stamped_pose", 10, std::bind(&esvo_MVStereo::stampedPoseCallback, this, std::placeholders::_1));
   // message_filters subscribers and synchronizer
