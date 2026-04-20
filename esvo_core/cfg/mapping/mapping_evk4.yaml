@@ -27,7 +27,7 @@
     Tdist_nu: 2.1897
     Tdist_scale: 16.6397
     Tdist_stdvar: 56.5347
-    BM_half_slice_thickness: 0.001
+    BM_half_slice_thickness: 0.01
     BM_min_disparity: 1
     BM_max_disparity: 850
     BM_step: 1
