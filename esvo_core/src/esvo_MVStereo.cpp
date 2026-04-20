@@ -766,11 +766,11 @@ void esvo_MVStereo::eventsCallback(
   std::lock_guard<std::mutex> lock(data_mutex_);
 
   static constexpr double max_time_diff_before_reset_s = 0.5;
-  const rclcpp::Time stamp_first_event = msg->events[0].ts;
 
   // check time stamp inconsistency
   if(!msg->events.empty() && !EQ.empty())
   {
+    const rclcpp::Time stamp_first_event = msg->events[0].ts;
     const double dt = stamp_first_event.seconds() - rclcpp::Time(EQ.back().ts).seconds();
     if(dt < 0 || std::fabs(dt) >= max_time_diff_before_reset_s)
     {
