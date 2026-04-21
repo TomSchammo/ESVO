@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.5)
 project(esvo_core)
 
 # explicitly set std=c++14 to remove errors from pcl library
-set(CMAKE_CXX_STANDARD 14)
+# C++20 is required for std::format
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "-O3")
 

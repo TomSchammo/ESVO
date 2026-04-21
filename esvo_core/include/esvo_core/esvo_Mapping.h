@@ -20,6 +20,7 @@
 #include <esvo_core/core/DepthProblem.h>
 #include <esvo_core/core/DepthProblemSolver.h>
 #include <esvo_core/core/EventBM.h>
+#include <esvo_core/tools/SystemStatus.h>
 #include <esvo_core/tools/utils.h>
 #include <esvo_core/tools/Visualization.h>
 
@@ -31,6 +32,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
 
+#include <atomic>
 #include <map>
 #include <deque>
 #include <mutex>
@@ -150,7 +152,7 @@ class esvo_Mapping : public rclcpp::Node
   std::optional<rclcpp::Duration> time_offset_;
 
   // system
-  std::string ESVO_System_Status_;
+  std::atomic<SystemStatus> ESVO_System_Status_{SystemStatus::INITIALIZATION};
   DepthProblemConfig::Ptr dpConfigPtr_;
   DepthProblemSolver dpSolver_;
   DepthFusion dFusor_;

@@ -17,6 +17,7 @@
 #include <esvo_core/container/CameraSystem.h>
 #include <esvo_core/core/RegProblemLM.h>
 #include <esvo_core/core/RegProblemSolverLM.h>
+#include <esvo_core/tools/SystemStatus.h>
 #include <esvo_core/tools/utils.h>
 #include <esvo_core/tools/Visualization.h>
 
@@ -25,6 +26,7 @@
 #include <opencv2/calib3d/calib3d.hpp>
 #include <cv_bridge/cv_bridge.hpp>
 
+#include <atomic>
 #include <map>
 #include <deque>
 #include <mutex>
@@ -139,7 +141,7 @@ class esvo_Tracking : public rclcpp::Node
   /*** system objects ***/
   RegProblemType rpType_;
   TrackingStatus ets_;
-  std::string ESVO_System_Status_;
+  std::atomic<SystemStatus> ESVO_System_Status_{SystemStatus::INITIALIZATION};
   RegProblemConfig::Ptr rpConfigPtr_;
   RegProblemSolverLM rpSolver_;
 };

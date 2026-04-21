@@ -123,16 +123,21 @@ esvo_Mapping::esvo_Mapping()
                        BM_step_, BM_ZNCC_Threshold_, BM_bUpDownConfiguration_);
 
   // system status - use shared topic for inter-node coordination (ROS2 parameters are node-local)
-  ESVO_System_Status_ = "INITIALIZATION";
   system_status_pub_ = create_publisher<std_msgs::msg::String>("/ESVO_SYSTEM_STATUS", rclcpp::QoS(1).transient_local());
   system_status_sub_ = create_subscription<std_msgs::msg::String>(
     "/ESVO_SYSTEM_STATUS", rclcpp::QoS(1).transient_local(),
     [this](const std_msgs::msg::String::SharedPtr msg) {
-      ESVO_System_Status_ = msg->data;
+      if (auto parsed = system_status_from_string(msg->data)) {
+        ESVO_System_Status_.store(*parsed);
+      } else {
+        auto error_msg = std::format("Unknown /ESVO_SYSTEM_STATUS value: {}", msg->data.c_str());
+        RCLCPP_ERROR(this->get_logger(), error_msg.c_str());
+        throw std::runtime_error(error_msg);
+      }
     });
   // Publish initial status
   auto status_msg = std_msgs::msg::String();
-  status_msg.data = ESVO_System_Status_;
+  status_msg.data = to_string(ESVO_System_Status_.load());
   system_status_pub_->publish(status_msg);
 
   // TODO check if 10 is enough or if events are dropped
@@ -208,8 +213,8 @@ void esvo_Mapping::MappingLoop(
       changed_frame_rate_ = false;
     }
     // check system status
-    //    LOG(INFO) << "SYSTEM STATUS (MappingLoop): " << ESVO_System_Status_;
-    if(ESVO_System_Status_ == "TERMINATE")
+    //    LOG(INFO) << "SYSTEM STATUS (MappingLoop): " << to_string(ESVO_System_Status_.load());
+    if(ESVO_System_Status_.load() == SystemStatus::TERMINATE)
     {
       LOG(INFO) << "The Mapping node is terminated manually...";
       break;
@@ -241,7 +246,8 @@ void esvo_Mapping::MappingLoop(
         continue;
       }
       // Do initialization (State Machine)
-      if(ESVO_System_Status_ == "INITIALIZATION" || ESVO_System_Status_ == "RESET")
+      const SystemStatus status = ESVO_System_Status_.load();
+      if(status == SystemStatus::INITIALIZATION || status == SystemStatus::RESET)
       {
 #ifdef ESVO_CORE_MAPPING_DEBUG
         TicToc tt;
@@ -259,7 +265,7 @@ void esvo_Mapping::MappingLoop(
           LOG(INFO) << "Initialization fails once.";
       }
       // Do mapping
-      if(ESVO_System_Status_ == "WORKING")
+      if(ESVO_System_Status_.load() == SystemStatus::WORKING)
         MappingAtTime(TS_obs_.first);
     }
     else
@@ -521,13 +527,13 @@ bool esvo_Mapping::dataTransferring()
   while(TS_obs_.second.isEmpty())
   {
     Transformation tr;
-    if(ESVO_System_Status_ == "INITIALIZATION")
+    if(ESVO_System_Status_.load() == SystemStatus::INITIALIZATION)
     {
       tr.setIdentity();
       it_end->second.setTransformation(tr);
       TS_obs_ = *it_end;
     }
-    if(ESVO_System_Status_ == "WORKING")
+    if(ESVO_System_Status_.load() == SystemStatus::WORKING)
     {
       if(getPoseAt(it_end->first, tr, dvs_frame_id_))
       {
@@ -537,7 +543,7 @@ bool esvo_Mapping::dataTransferring()
       else
       {
         // check if the tracking node is still working normally
-        if(ESVO_System_Status_ != "WORKING")
+        if(ESVO_System_Status_.load() != SystemStatus::WORKING)
           return false;
       }
     }
@@ -550,7 +556,7 @@ bool esvo_Mapping::dataTransferring()
 
   /****** Load involved events *****/
   // SGM
-  if(ESVO_System_Status_ == "INITIALIZATION")
+  if(ESVO_System_Status_.load() == SystemStatus::INITIALIZATION)
   {
     vEventsPtr_left_SGM_.clear();
 
@@ -577,7 +583,7 @@ bool esvo_Mapping::dataTransferring()
   }
 
   // BM
-  if(ESVO_System_Status_ == "WORKING")
+  if(ESVO_System_Status_.load() == SystemStatus::WORKING)
   {
     // copy all involved events' pointers
     vALLEventsPtr_left_.clear();  // Used to generate denoising mask (only used to deal with flicker induced by VICON.)
@@ -624,7 +630,7 @@ bool esvo_Mapping::dataTransferring()
         st_map_.emplace(t_tmp, tr);
       else
       {
-        if(ESVO_System_Status_ != "WORKING")
+        if(ESVO_System_Status_.load() != SystemStatus::WORKING)
           return false;
       }
       t_tmp = t_tmp + rclcpp::Duration::from_seconds(0.05 * BM_half_slice_thickness_);
@@ -837,9 +843,9 @@ void esvo_Mapping::reset()
   mapping_thread_promise_ = std::promise<void>();
   reset_future_ = reset_promise_.get_future();
   mapping_thread_future_ = mapping_thread_promise_.get_future();
-  ESVO_System_Status_ = "INITIALIZATION";
+  ESVO_System_Status_.store(SystemStatus::INITIALIZATION);
   auto status_msg = std_msgs::msg::String();
-  status_msg.data = ESVO_System_Status_;
+  status_msg.data = to_string(ESVO_System_Status_.load());
   system_status_pub_->publish(status_msg);
   std::thread MappingThread(&esvo_Mapping::MappingLoop, this,
                             std::move(mapping_thread_promise_), std::move(reset_future_));
@@ -931,9 +937,9 @@ void esvo_Mapping::publishMappingResults(
   visualizor_.plot_map(depthMapPtr, tools::CostMap, costImage, cost_vis_threshold_, 0.0, cost_vis_threshold_);
   publishImage(costImage, t, costMap_pub_);
 
-  if(ESVO_System_Status_ == "INITIALIZATION")
+  if(ESVO_System_Status_.load() == SystemStatus::INITIALIZATION)
     publishPointCloud(depthMapPtr, tr, t);
-  if(ESVO_System_Status_ == "WORKING")
+  if(ESVO_System_Status_.load() == SystemStatus::WORKING)
   {
     if(FusionStrategy_ == "CONST_FRAMES")
     {
