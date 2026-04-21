@@ -150,11 +150,6 @@ esvo_Mapping::esvo_Mapping()
   events_right_sub_ = create_subscription<dvs_msgs::msg::EventArray>(
     "events_right", qos,
     [this](const dvs_msgs::msg::EventArray::SharedPtr msg) { eventsCallback(msg, events_right_); });
-  time_offset_sub_ = create_subscription<builtin_interfaces::msg::Duration>(
-    "/time_offset", rclcpp::QoS(10).best_effort(),
-    [this](const builtin_interfaces::msg::Duration::SharedPtr msg) {
-      this->time_offset_ = rclcpp::Duration(*msg);
-    });
   stampedPose_sub_ = create_subscription<geometry_msgs::msg::PoseStamped>(
     "stamped_pose", 10,
     std::bind(&esvo_Mapping::stampedPoseCallback, this, std::placeholders::_1));
@@ -560,14 +555,8 @@ bool esvo_Mapping::dataTransferring()
   {
     vEventsPtr_left_SGM_.clear();
 
-    // Convert ROS time to sensor time using time_offset
-    if (!time_offset_.has_value()) {
-      LOG(WARNING) << "time_offset not yet received, cannot search events";
-      return false;
-    }
 
-    rclcpp::Time t_end_ros = TS_obs_.first;
-    rclcpp::Time t_end = t_end_ros + time_offset_.value();
+    rclcpp::Time t_end = TS_obs_.first;
 
     rclcpp::Time t_begin = t_end - rclcpp::Duration::from_seconds(
         std::min(t_end.seconds(), 2 * BM_half_slice_thickness_));
@@ -589,14 +578,8 @@ bool esvo_Mapping::dataTransferring()
     vALLEventsPtr_left_.clear();  // Used to generate denoising mask (only used to deal with flicker induced by VICON.)
     vCloseEventsPtr_left_.clear();// Will be denoised using the mask above.
 
-    if (!time_offset_.has_value()) {
-      LOG(WARNING) << "time_offset not yet received, cannot search events";
-      return false;
-    }
-
     // load allEvent
-    rclcpp::Time t_end_ros = TS_obs_.first;
-    rclcpp::Time t_end = t_end_ros + time_offset_.value();
+    rclcpp::Time t_end = TS_obs_.first;
 
     rclcpp::Time t_begin = t_end - rclcpp::Duration::from_seconds(
         std::min(t_end.seconds(), 10 * BM_half_slice_thickness_));

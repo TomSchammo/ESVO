@@ -104,7 +104,7 @@ class TimeSurface : public rclcpp::Node
     size_t start_col_, end_col_;
     size_t start_row_, end_row_;
     size_t i_thread_;
-    rclcpp::Time sync_time_in_sensor_time;
+    rclcpp::Time external_sync_time;
     double decay_sec_;
   };
 
@@ -139,7 +139,6 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr camera_info_sub_;
   rclcpp::Subscription<builtin_interfaces::msg::Time>::SharedPtr sync_topic_;
   image_transport::Publisher time_surface_pub_;
-  rclcpp::Subscription<builtin_interfaces::msg::Duration>::SharedPtr time_offset_sub_;
 
   // online parameters
   bool bCamInfoAvailable_;
@@ -147,9 +146,6 @@ private:
   cv::Size sensor_size_;
   rclcpp::Time sync_time_;
   bool bSensorInitialized_;
-
-  // uninitialized time sync
-  std::optional<rclcpp::Duration> time_offset_ = std::nullopt;
 
   // offline parameters
   double decay_ms_;

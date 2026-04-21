@@ -87,7 +87,6 @@ class esvo_Tracking : public rclcpp::Node
   rclcpp::Subscription<dvs_msgs::msg::EventArray>::SharedPtr events_left_sub_;
   rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr map_sub_;
   rclcpp::Subscription<std_msgs::msg::String>::SharedPtr system_status_sub_;
-  rclcpp::Subscription<builtin_interfaces::msg::Duration>::SharedPtr time_offset_sub_;
 
   message_filters::Subscriber<sensor_msgs::msg::Image> TS_left_sub_, TS_right_sub_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr stampedPose_sub_;
@@ -125,7 +124,6 @@ class esvo_Tracking : public rclcpp::Node
   RefPointCloudMap refPCMap_;
   RefFrame ref_;
   CurFrame cur_;
-  std::optional<rclcpp::Duration> time_offset_;
 
   /**** offline parameters ***/
   size_t tracking_rate_hz_;
