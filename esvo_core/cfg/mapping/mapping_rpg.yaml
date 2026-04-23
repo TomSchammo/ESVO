@@ -23,7 +23,7 @@
     mapping_rate_hz: 20
     patch_size_X: 15
     patch_size_Y: 7
-    Lnorm: "Tdist"
+    LSnorm: "Tdist"
     Tdist_nu: 2.1897
     Tdist_scale: 16.6397
     Tdist_stdvar: 56.5347
