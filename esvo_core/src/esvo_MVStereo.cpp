@@ -673,7 +673,7 @@ void esvo_MVStereo::stampedPoseCallback(const geometry_msgs::msg::PoseStamped::S
   static constexpr double max_time_diff_before_reset_s = 0.5;
   const rclcpp::Time stamp_first_event = ps_msg->header.stamp;
 
-  if( tf_lastest_common_time_.seconds() != 0)
+  if( tf_lastest_common_time_.nanoseconds() != 0)
   {
     const double dt = stamp_first_event.seconds() - tf_lastest_common_time_.seconds();
     if(dt < 0 || std::fabs(dt) >= max_time_diff_before_reset_s)

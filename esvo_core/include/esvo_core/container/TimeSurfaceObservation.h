@@ -170,7 +170,7 @@ inline static TimeSurfaceHistory::iterator TSHistory_lower_bound(TimeSurfaceHist
 {
   return std::lower_bound(ts_history.begin(), ts_history.end(), t,
                           [](const std::pair<rclcpp::Time, TimeSurfaceObservation> &tso, const rclcpp::Time &t) {
-                            return tso.first.seconds() < t.seconds();
+                            return tso.first.nanoseconds() < t.nanoseconds();
                           });
 }
 
@@ -178,7 +178,7 @@ inline static TimeSurfaceHistory::iterator TSHistory_upper_bound(TimeSurfaceHist
 {
   return std::upper_bound(ts_history.begin(), ts_history.end(), t,
                           [](const rclcpp::Time &t, const std::pair<rclcpp::Time, TimeSurfaceObservation> &tso) {
-                            return t.seconds() < tso.first.seconds();
+                            return t.nanoseconds() < tso.first.nanoseconds();
                           });
 }
 }

@@ -593,7 +593,7 @@ bool esvo_Mapping::dataTransferring()
     // Here we load transformations for all virtual views.
     st_map_.clear();
     rclcpp::Time t_tmp = t_begin;
-    while(t_tmp.seconds() <= t_end.seconds())
+    while(t_tmp.nanoseconds() <= t_end.nanoseconds())
     {
       Transformation tr;
       if(getPoseAt(t_tmp, tr, dvs_frame_id_))
@@ -619,7 +619,7 @@ void esvo_Mapping::stampedPoseCallback(const geometry_msgs::msg::PoseStamped::Sh
   static constexpr double max_time_diff_before_reset_s = 0.5;
   const rclcpp::Time stamp_first_event = ps_msg->header.stamp;
 
-  if( tf_lastest_common_time_.seconds() != 0)
+  if( tf_lastest_common_time_.nanoseconds() != 0)
   {
     const double dt = stamp_first_event.seconds() - tf_lastest_common_time_.seconds();
     if(dt < 0 || std::fabs(dt) >= max_time_diff_before_reset_s)
